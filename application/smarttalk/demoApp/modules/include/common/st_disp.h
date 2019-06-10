@@ -64,6 +64,8 @@ MI_S32 ST_Disp_ChnInit(MI_DISP_LAYER DispLayer, const ST_DispChnInfo_t *pstDispC
 MI_S32 ST_Disp_DeInit(MI_DISP_DEV DispDev, MI_DISP_LAYER DispLayer, MI_S32 s32InputPortNum);
 MI_S32 ST_Disp_ShowStatus(MI_DISP_LAYER DispLayer, MI_S32 s32InputPortNum, MI_BOOL bIsShow);
 MI_S32 ST_Disp_ClearChn(MI_DISP_LAYER s32Layer, MI_S32 s32Port);
+MI_S32 ST_Disp_EnableChn(MI_DISP_LAYER s32Layer, MI_S32 s32Port);
+MI_S32 ST_Disp_DisableChn(MI_DISP_LAYER s32Layer, MI_S32 s32Port);
 
 #ifdef __cplusplus
 }

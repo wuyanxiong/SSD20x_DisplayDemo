@@ -393,6 +393,7 @@ MI_S32 ST_CreateVdec2DispPipe(MI_S32 s32VdecChn, MI_S32 s32DivpChn, MI_U32 u32Vd
     #else
         ST_CreateVdecChannel(s32VdecChn, s32CodecType, u32VdecW, u32VdecH, VIDEO_DISP_W, VIDEO_DISP_H);
     #endif
+    ST_Disp_EnableChn(0, 0);
     ST_ModuleBind(E_MI_MODULE_ID_VDEC, 0, s32VdecChn, 0,
                     E_MI_MODULE_ID_DISP, 0, 0, 0); //DIVP->DISP
 
@@ -404,7 +405,7 @@ MI_S32 ST_DestroyVdec2DispPipe(     MI_S32 s32VdecChn, MI_S32 s32DivpChn)
     ST_ModuleUnBind(E_MI_MODULE_ID_VDEC, 0, s32VdecChn, 0,
                     E_MI_MODULE_ID_DISP, 0, 0, 0); //DIVP->DISP
     ST_DestroyVdecChannel(s32VdecChn);
-    //ST_Disp_ClearChn(0,0);
+    ST_Disp_DisableChn(0, 0);
 
     return MI_SUCCESS;
 }
