@@ -2734,8 +2734,8 @@ MG_EXPORT HCURSOR GUIAPI GetCurrentCursor (void);
   #define LoadCursorFromFile(filename)    (do_nothing(), 0)
   #define CreateCursor(x, y, w, h, ANDbs, XORbs, cr) (do_nothing(), 0)
   #define DestroyCursor(hcsr)             (do_nothing(), 0)
-  #define GetSystemCursor(csrid)          (do_nothing(), 0)
-  #define GetCurrentCursor()              (do_nothing(), 0)
+  #define GetSystemCursor(csrid)          (do_nothing(), (HCURSOR)0)
+  #define GetCurrentCursor()              (do_nothing(), (HCURSOR)0)
 #endif /* _MGHAVE_CURSOR */
 
 #define MAX_SYSCURSORINDEX    22
@@ -2909,10 +2909,10 @@ MG_EXPORT void GUIAPI SetCursorPos (int x, int y);
 MG_EXPORT  HCURSOR GUIAPI GetDefaultCursor (void);
 
 #else
-  #define SetCursorEx(hcsr, set_def)    (do_nothing(), 0)
-  #define SetCursor(hcsr)               (do_nothing(), 0)
-  #define SetDefaultCursor(hcsr)        (do_nothing(), 0)
-  #define GetDefaultCursor()            (do_nothing(), 0)
+  #define SetCursorEx(hcsr, set_def)    (do_nothing(), (HCURSOR)0)
+  #define SetCursor(hcsr)               (do_nothing(), (HCURSOR)0)
+  #define SetDefaultCursor(hcsr)        (do_nothing(), (HCURSOR)0)
+  #define GetDefaultCursor()            (do_nothing(), (HCURSOR)0)
 #endif /* _MGHAVE_CURSOR */
 
 #ifdef _MGHAVE_CURSOR

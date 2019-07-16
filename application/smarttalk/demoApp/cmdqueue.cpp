@@ -111,7 +111,7 @@ int MsgQueue::send_message (unsigned int msgval,
 {
     Msg *newmsg = (Msg *)malloc(sizeof(Msg));
     if (newmsg == NULL){ 
-        printf("malloc failed\n");
+        printf("MsgQueue::malloc failed\n");
         return (-1);
     }
     if(newmsg->init(msgval, msg, msg_len, param) == 0){
@@ -162,16 +162,16 @@ Msg *MsgQueue::get_message (void)
 }
 
 void MsgQueue::release(){
-    Msg* pMsg = NULL;
-    while(1){
-        pMsg = get_message();
-        if(pMsg){
-            pMsg->free_message();
-            free(pMsg);
-            pMsg = NULL;
-        }else
-            break;
-    }
+ 	Msg* pMsg = NULL;
+	while(1){
+		pMsg = get_message();
+		if(pMsg){
+			pMsg->free_message();
+			free(pMsg);
+			pMsg = NULL;
+		}else
+			break;
+	}
 }
 
 int cmd_parse_msg(Msg* pMsg, unsigned long* RMsg){

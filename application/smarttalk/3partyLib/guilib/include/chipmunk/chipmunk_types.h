@@ -54,7 +54,13 @@
 
 #ifndef CP_USE_DOUBLES
 	// Use doubles by default for higher precision.
-	#define CP_USE_DOUBLES 1
+#if __arm__
+	#if __ARM_32BIT_STATE
+		#define CP_USE_DOUBLES 0
+	#else
+		#define CP_USE_DOUBLES 1
+	#endif
+#endif	
 #endif
 
 /// @defgroup basicTypes Basic Types

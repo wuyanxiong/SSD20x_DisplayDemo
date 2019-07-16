@@ -9,7 +9,7 @@
 
 /* Define to 1 if you have the declaration of `_MGRM_PROCESSES', and to 0 if
    you don't. */
-#define HAVE_DECL__MGRM_PROCESSES 1
+#define HAVE_DECL__MGRM_PROCESSES 0
 
 /* Define to 1 if you have the <dirent.h> header file, and it defines `DIR'.
    */

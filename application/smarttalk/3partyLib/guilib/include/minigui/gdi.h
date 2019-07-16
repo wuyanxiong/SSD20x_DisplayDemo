@@ -1485,6 +1485,30 @@ static inline HDC GUIAPI CreateMemDC (int width, int height, int depth, DWORD fl
  */
 MG_EXPORT HDC GUIAPI CreateSubMemDC (HDC parent, int off_x, int off_y, 
                 int width, int height, BOOL comp_to_parent);
+/**
+ * \fn HDC GUIAPI CreateSubMemDC1 (HDC parent, int off_x, int off_y, \
+                int width, int height, BOOL comp_to_parent)
+ * \brief Creates a sub memory DC in the given memory DC.
+ *
+ * This function creates a sub memory DC in the given memory DC (the parent
+ * memory DC). Note that the new sub memdc will have the same DC attributes
+ * as the parent memdc except pitch which was calculated by its own W&H.
+ *
+ * \param parent The handle to the parent memory DC.
+ * \param off_x The x-coordinate of the sub memory DC in the parent DC (in
+ *        device coordinate system).
+ * \param off_y The y-coordinate of the sub memory DC in the parent DC (in
+ *        device coordinate system).
+ * \param width The expected width of the sub memory DC.
+ * \param height The expected height of the sub memory DC.
+ * \param comp_to_parent The flag indicates whether the sub memdc is compliant
+ *        to the parent dc.
+ * \return The handle to the memory DC; HDC_INVALID indicates an error.
+ *
+ * \note Only defined for _USE_NEWGAL.
+ *
+ * \sa CreateMemDC
+ */
 MG_EXPORT HDC GUIAPI CreateSubMemDC1 (HDC parent, int off_x, int off_y, 
         int width, int height, BOOL comp_to_parent);
 

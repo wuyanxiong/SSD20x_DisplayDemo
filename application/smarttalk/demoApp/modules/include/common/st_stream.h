@@ -60,12 +60,13 @@ typedef struct st_StreamSync_s
     pthread_mutex_t video_dec_lock;
     MI_U32 s32Count;
     MI_S32 s32DecodeFlag;
+    MI_S32 s32VdecReady;
 } StreamSync_T;
 
 typedef struct st_TimeStamp_s{
-    unsigned int OldCurrVideo;
+    unsigned int OldCurrVideo;     //上一次当前视频时间
     unsigned int CurrVideo;
-    unsigned int OldCurrAudio;
+    unsigned int OldCurrAudio;     //上一次当前音频时间
     unsigned int CurrAudio;
 } st_TimeStamp_T;
 
@@ -82,6 +83,7 @@ MI_S32 Stream_StartSendAudio(unsigned long IPaddr);
 MI_S32 Stream_StopSendAudio();
 MI_S32 Stream_StartRecvAudio(MI_S32 s32VolValue, MI_BOOL bMute);
 MI_S32 Stream_StopRecvAudio();
+
 
 #ifdef  __cplusplus
 }

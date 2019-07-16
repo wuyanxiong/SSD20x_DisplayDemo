@@ -12,6 +12,9 @@
 /* MiniGUI configure file name */
 #define ETCFILENAME "MiniGUI.cfg"
 
+/* Define SSTAR GUI ACCELERATOR */
+#define FB_ACCEL_SSTAR_GFX 1
+
 /* Define to 1 if you have `alloca', as a function or macro. */
 #define HAVE_ALLOCA 1
 
@@ -181,7 +184,7 @@
 #define _HAVE_MATH_LIB 1
 
 /* Define if build MiniGUI-Processes (back-compatibility definition) */
-#define _LITE_VERSION 1
+/* #undef _LITE_VERSION */
 
 /* Define if support Arabic charset */
 #define _MGCHARSET_ARABIC 1
@@ -397,7 +400,7 @@
 /* #undef _MGGAL_EM86GFX */
 
 /* Define if include FrameBuffer console NEWGAL engine */
-#define _MGGAL_FBCON 1
+/* #undef _MGGAL_FBCON */
 
 /* Define if include GDL Video NEWGAL engine */
 /* #undef _MGGAL_GDL */
@@ -415,7 +418,7 @@
 /* #undef _MGGAL_MB93493 */
 
 /* Define if include MLShadow NEWGAL engine */
-#define _MGGAL_MLSHADOW 1
+/* #undef _MGGAL_MLSHADOW */
 
 /* Define if include mstar NEWGAL engine */
 /* #undef _MGGAL_MSTAR */
@@ -436,10 +439,13 @@
 /* #undef _MGGAL_S3C6410 */
 
 /* Define if include Shadow NEWGAL engine */
-/* #undef _MGGAL_SHADOW */
+#define _MGGAL_SHADOW 1
 
 /* Define if include sigma8654 NEWGAL engine */
 /* #undef _MGGAL_SIGMA8654 */
+
+/* Define if include sstar NEWGAL engine */
+#define _MGGAL_SSTAR 1
 
 /* Define if include NEWGAL engine for STGFB */
 /* #undef _MGGAL_STGFB */
@@ -463,7 +469,7 @@
 #define _MGHAVE_CLIPBOARD 1
 
 /* Define if include cursor support */
-#define _MGHAVE_CURSOR 1
+/* #undef _MGHAVE_CURSOR */
 
 /* Define if include fixed math routines */
 #define _MGHAVE_FIXED_MATH 1
@@ -628,7 +634,7 @@
 #define _MGLF_RDR_SKIN 1
 
 /* MiniGUI library suffix */
-#define _MGLIB_SUFFIX "procs"
+#define _MGLIB_SUFFIX "ths"
 
 /* Define if compile max ttf cahce number for 10 (default value) */
 #define _MGMAX_TTF_CACHE 10
@@ -646,13 +652,13 @@
 #define _MGMISC_SAVESCREEN 1
 
 /* Define if build MiniGUI-Processes */
-#define _MGRM_PROCESSES 1
+/* #undef _MGRM_PROCESSES */
 
 /* Define if build MiniGUI-Standalone */
 /* #undef _MGRM_STANDALONE */
 
 /* Define if build MiniGUI-Threads */
-/* #undef _MGRM_THREADS */
+#define _MGRM_THREADS 1
 
 /* Define if the unit of timer is 10ms */
 #define _MGTIMER_UNIT_10MS 1
@@ -679,7 +685,7 @@
 /* #undef _STAND_ALONE */
 
 /* Define if use minigui_entry function in MiniGUI */
-/* #undef _USE_MINIGUIENTRY */
+#define _USE_MINIGUIENTRY 1
 
 /* Define if compile for Cygwin platform */
 /* #undef __CYGWIN__ */
@@ -764,4 +770,3 @@
 
 /* Define to `unsigned int' if <sys/types.h> does not define. */
 /* #undef size_t */
-#define FB_ACCEL_SIGMASTAR_I5

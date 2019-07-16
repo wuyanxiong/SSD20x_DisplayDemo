@@ -258,7 +258,7 @@ MI_S32 ST_XmlPraseUiCfg(const MI_U8 *pu8CfgFile, const MI_U8 *LayoutName, ST_Rec
         if ((!xmlStrcmp(cur->name, (const xmlChar *)LayoutName)))
         {
             cur = cur->xmlChildrenNode;
-            while (cur != NULL) 
+            while (cur != NULL)
             {
                 if ((!xmlStrcmp(cur->name, (const xmlChar *)"ItemArea")))
                 {
@@ -524,4 +524,97 @@ FAILED:
     }
     return -1;
 }
+
+
+MI_S32 ST_XmlParsePlayFileCfg(MI_U8 *pu8Path, MI_S32 s32PathLen)
+{
+    xmlDocPtr doc;
+    xmlNodePtr cur;
+    xmlChar *pPath = NULL;
+
+    doc = xmlParseFile(DEV_INFO_CFG_FILE);
+    if (doc == NULL) {
+        fprintf(stderr, "Failed to parse xml file:%s\n", DEV_INFO_CFG_FILE);
+        printf("Failed to parse xml file:%s\n", DEV_INFO_CFG_FILE);
+        goto FAILED;
+    }
+
+    cur = xmlDocGetRootElement(doc);
+    if (cur == NULL) {
+        fprintf(stderr, "Root is empty.\n");
+        goto FAILED;
+    }
+
+    if ((xmlStrcmp(cur->name, (const xmlChar *)"SmartDevInfo_CFG"))) {
+        fprintf(stderr, "The root is not smart Devinfo config.\n");
+        printf("The root is not smart Devinfo config.\n");
+        goto FAILED;
+    }
+
+    cur = cur->xmlChildrenNode;
+    while (cur != NULL) {
+        //printf("cur node name: %s\n", cur->name);
+        if ((!xmlStrcmp(cur->name, (const xmlChar *)"LastPlayFile")))
+        {
+            pPath = xmlGetProp(cur, (const xmlChar *)"Path");
+            memset(pu8Path, 0, s32PathLen);
+            memcpy(pu8Path, pPath, strlen((char*)pPath));
+            break;
+        }
+
+        cur = cur->next;
+    }
+    xmlFreeDoc(doc);
+    return 0;
+FAILED:
+    if (doc) {
+        xmlFreeDoc(doc);
+    }
+    return -1;
+}
+
+
+MI_S32 ST_XmlUpdatePlayFileCfg(MI_U8 *pu8SavePath)
+{
+    xmlDocPtr doc;
+    xmlNodePtr cur;
+
+    doc = xmlParseFile(DEV_INFO_CFG_FILE);
+    if (doc == NULL) {
+        fprintf(stderr, "Failed to parse xml file:%s\n", DEV_INFO_CFG_FILE);
+        goto FAILED;
+    }
+
+    cur = xmlDocGetRootElement(doc);
+    if (cur == NULL) {
+        fprintf(stderr, "Root is empty.\n");
+        goto FAILED;
+    }
+
+    if ((xmlStrcmp(cur->name, (const xmlChar *)"SmartDevInfo_CFG"))) {
+        fprintf(stderr, "The root is not smart Devinfo config.\n");
+        goto FAILED;
+    }
+
+    cur = cur->xmlChildrenNode;
+    while (cur != NULL) {
+        //printf("cur node name: %s\n", cur->name);
+        if ((!xmlStrcmp(cur->name, (const xmlChar *)"LastPlayFile")))
+        {
+            xmlSetProp(cur, (const xmlChar *)"Path", (const xmlChar *)pu8SavePath);
+            break;
+        }
+
+        cur = cur->next;
+    }
+    xmlSaveFile(DEV_INFO_CFG_FILE, doc);
+    xmlFreeDoc(doc);
+    return 0;
+FAILED:
+    if (doc) {
+        xmlFreeDoc(doc);
+    }
+    return -1;
+}
+
 

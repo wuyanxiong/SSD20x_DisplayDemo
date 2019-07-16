@@ -4,6 +4,10 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdarg.h>
+#include <dirent.h>
+#include <sys/stat.h>
+#include <signal.h>
+#include <sys/time.h>
 
 #include <minigui/common.h>
 #include <minigui/minigui.h>
@@ -24,7 +28,7 @@
 #include "st_voice.h"
 #include "char_conversion.h"
 #include "st_xmlprase.h"
-
+#include "st_usb.h"
 
 #define HIDE_CURSOR     1
 #define ROUNDRECT_ICON  0
@@ -87,6 +91,7 @@ typedef  struct tagTRACKBARINFO
     BITMAP *pRulerBmp;
     BITMAP *pHThumbBmp;
     BITMAP *pVThumbBmp;
+    BITMAP *pProcBmp;
 }TRACKBARINFO;
 
 typedef struct tagSKIN_BMPINFO
@@ -138,14 +143,14 @@ typedef struct
 
 typedef struct
 {
-    list_head btnProcList;
+    list_t btnProcList;
     HWND hBtn;
     WNDPROC btnOldProc;
 }BtnProcListData_t;
 
 typedef struct
 {
-    list_head trackBarProcList;
+    list_t trackBarProcList;
     HWND hTrackBar;
     TRACKBARINFO trackInfo;
     WNDPROC trackBarOldProc;
@@ -158,9 +163,33 @@ typedef struct
     char szWord[62];
 }TrainingWordData_t;
 
-static list_head g_btnProcListHead;
-static list_head g_trackBarProcListHead;
-static list_head g_trainingWordListHead;
+typedef enum
+{
+    E_PLAY_FORWARD,
+    E_PLAY_BACKWARD
+}PlayDirection_e;
+
+typedef enum
+{
+    E_PLAY_NORMAL_MODE,
+    E_PLAY_FAST_MODE,
+    E_PLAY_SLOW_MODE
+}PlayMode_e;
+
+typedef enum
+{
+    E_NORMAL_SPEED = 0,
+    E_2X_SPEED,
+    E_4X_SPEED,
+    E_8X_SPEED,
+    E_16X_SPEED,
+    E_32X_SPEED
+}PlaySpeedMode_e;
+
+
+static list_t g_btnProcListHead;
+static list_t g_trackBarProcListHead;
+static list_t g_trainingWordListHead;
 static TrainingWordData_t g_oldTrainWord = {{NULL, NULL}, -1, ""};
 
 // btn list opt
@@ -339,6 +368,24 @@ static BITMAP btn_monitor;
 static BITMAP trackbar_ruler;
 static BITMAP trackbar_hthumb;
 static BITMAP trackbar_vthumb;
+static BITMAP trackbar_procBar;
+static BITMAP g_item_upfolder;
+static BITMAP g_item_folder;
+static BITMAP g_item_file;
+
+static BITMAP g_playfile_updir;
+static BITMAP g_play_btn;
+static BITMAP g_pause_btn;
+static BITMAP g_stop_btn;
+static BITMAP g_slow_btn;
+static BITMAP g_fast_btn;
+static BITMAP g_playtoolbar;
+
+
+
+
+
+
 //==========================================END===static ui bmp=============================
 
 //==========================================START===static font=============================
@@ -349,6 +396,7 @@ static HWND hMainWnd = HWND_INVALID;
 static HWND hMainSettingWnd = HWND_INVALID;
 static HWND hMainVideoWnd = HWND_INVALID;
 static HWND hMainSmartMicWnd = HWND_INVALID;
+static HWND hMainPlayFileWnd = HWND_INVALID;
 static HWND hMainCallWnd = HWND_INVALID;
 static HWND hMainTimeWnd = HWND_INVALID;
 static HWND hFaceDispWnd = HWND_INVALID;
@@ -358,6 +406,11 @@ static HWND hIconvWnd = HWND_INVALID;
 static HWND g_hSmartmicBtn[3];
 static char g_szSmartmicBtnText[3][16] = {"训练词汇", "开始侦测", "停止侦测"};
 static WNDPROC g_oldSmartmicBtnProc;
+
+// file explorer variables
+static HWND g_hUpperDirBtn = HWND_INVALID;
+static HWND g_hDirName = HWND_INVALID;
+static HWND g_hFileView = HWND_INVALID;
 
 // video variables
 static HWND g_hCamaraSnapBtn = HWND_INVALID;
@@ -434,7 +487,7 @@ static ItemBtnInfo_t g_astItemBtn[] = { {0, 0, 0, HWND_INVALID, E_SWITCH_BUTTON,
                                         {2, 0, 0, HWND_INVALID, E_NORMAL_BUTTON, false, false, "确定"},      // confirm
                                         {3, 0, 0, HWND_INVALID, E_SWITCH_BUTTON, false, false, ""},        // on/off
                                         {3, 0, 1, HWND_INVALID, E_SWITCH_BUTTON, false, false, ""},        // on/off
-                                        {3, 0, 2, HWND_INVALID, E_SWITCH_BUTTON, true, true, ""},         // on/off
+                                        {3, 0, 2, HWND_INVALID, E_SWITCH_BUTTON, true, true, ""},          // on/off
                                         {3, 0, 3, HWND_INVALID, E_SWITCH_BUTTON, false, false, ""},        // on/off
                                         {3, 1, 0, HWND_INVALID, E_SWITCH_BUTTON, false, false, ""},        // on/off
                                         {3, 1, 1, HWND_INVALID, E_SWITCH_BUTTON, false, false, ""},        // on/off
@@ -483,13 +536,13 @@ static PageBtnInfo_t g_astPageBtn[] = { {HWND_INVALID, HWND_INVALID, 4, E_SELECT
                                         {HWND_INVALID, HWND_INVALID, 0, E_SELECT_BUTTON, "本机信息"},
                                       };
 
-static TrackBarInfo_t g_astTrackBar[] = { {0, 0, 0, HWND_INVALID, 0, 100, 10, 0, 0},       // mic vol
-                                          {0, 0, 1, HWND_INVALID, 0, 100, 10, 0, 0},       // speaker vol
-                                          {0, 1, 0, HWND_INVALID, 0, 100, 1, 0, 0},       // vth vol
-                                          {0, 1, 1, HWND_INVALID, 0, 100, 1, 0, 0},       // vto vol
-                                          {0, 2, 0, HWND_INVALID, 0, 100, 1, 0, 0},       // alarm vol
+static TrackBarInfo_t g_astTrackBar[] = { {0, 0, 0, HWND_INVALID, 0, 100, 10, 0, 0},        // mic vol
+                                          {0, 0, 1, HWND_INVALID, 0, 100, 10, 0, 0},        // speaker vol
+                                          {0, 1, 0, HWND_INVALID, 0, 100, 1, 0, 0},         // vth vol
+                                          {0, 1, 1, HWND_INVALID, 0, 100, 1, 0, 0},         // vto vol
+                                          {0, 2, 0, HWND_INVALID, 0, 100, 1, 0, 0},         // alarm vol
                                           {0, 3, 0, HWND_INVALID, 0, 120, 8, 90, 90},       // vth time
-                                          {0, 3, 1, HWND_INVALID, 0, 120, 8, 120, 120},       // vto time
+                                          {0, 3, 1, HWND_INVALID, 0, 120, 8, 120, 120},     // vto time
                                         };
 
 
@@ -506,6 +559,23 @@ static ComboxInfo_t g_astCombox[] = { {0, 1, 0, HWND_INVALID, 3, 0, g_paVthRingN
                                       {0, 2, 0, HWND_INVALID, 6, 0, g_paAlarmRingName, AlarmComboxProc},
                                     };
 
+// play file page
+static MI_S32 g_s32SelectIdx = 0;
+static MI_U8 g_pu8RootPath[256] = "/customer";
+static MI_U8 g_pu8FullPath[256] = {0};
+static MI_U8 g_pu8SelectPath[256] = {0};            // save select file
+static MI_BOOL g_bShowPlayToolBar = FALSE;          // select file page or play file page
+
+static MI_BOOL g_bPlaying = FALSE;
+static MI_BOOL g_bPause = FALSE;
+static MI_BOOL g_ePlayDirection = E_PLAY_FORWARD;
+static PlayMode_e g_ePlayMode = E_PLAY_NORMAL_MODE;
+static PlaySpeedMode_e g_eSpeedMode = E_NORMAL_SPEED;
+static MI_U32 g_u32SpeedNumerator = 1;
+static MI_U32 g_u32SpeedDenomonator = 1;
+
+
+
 static pthread_t g_tid_msg;
 MsgQueue g_toUI_msg_queue;
 sem_t g_toUI_sem;
@@ -521,13 +591,22 @@ extern int g_faceDetect;
 //===============extern var===============end
 
 //===============trackbar drawing=====================start
-static void calc_trackbar_rect(HWND hWnd, TRACKBARINFO *info, DWORD dwStyle, const RECT* rcClient, RECT* rcRuler, RECT* rcBar, RECT* rcBorder)
+/*
+ *  rcClient: controller area
+ *  rcRuler: ruler area
+ *  rcBar: thumb area
+ *  rcProcBar: process area
+ *  rcBorder: border area
+ *
+*/
+static void calc_trackbar_rect(HWND hWnd, TRACKBARINFO *info, DWORD dwStyle, const RECT* rcClient, RECT* rcRuler, RECT* rcBar, RECT* rcProcBar, RECT* rcBorder)
 {
-    int     x, y, w, h;
-    int     pos, min, max;
-    int     sliderx, slidery, sliderw, sliderh;
+    int x, y, w, h;
+    int pos, min, max;
+    int sliderx, slidery, sliderw, sliderh;
     const BITMAP *rulerBmp = NULL;
     const BITMAP *thumbBmp = NULL;
+    const BITMAP *procBarBmp = NULL;
 
     x = rcClient->left;
     y = rcClient->top;
@@ -600,6 +679,25 @@ static void calc_trackbar_rect(HWND hWnd, TRACKBARINFO *info, DWORD dwStyle, con
             sliderx = x + (int)(pos - min) * (w - sliderw) / (max - min);
         }
         SetRect (rcBar, sliderx, slidery, sliderx + sliderw, slidery + sliderh);
+    }
+
+    if (rcProcBar)
+    {
+        procBarBmp = info->pProcBmp;
+        if (dwStyle & TBS_VERTICAL)
+        {
+            rcProcBar->left = rcRuler->left;
+            rcProcBar->top = slidery - sliderh;
+            rcProcBar->right = rcRuler->right;
+            rcProcBar->bottom = rcRuler->bottom;
+        }
+        else
+        {
+            rcProcBar->top = rcRuler->top;
+            rcProcBar->left = rcRuler->left;
+            rcProcBar->right = sliderx;
+            rcProcBar->bottom = rcRuler->bottom;
+        }
     }
 }
 
@@ -684,6 +782,10 @@ static void draw_area_from_bitmap(HDC hdc, const RECT* rc, const SKIN_BMPINFO *b
     int margin2 = bmp_info->margin2;
     int new_left = 0, new_top=  0;
 
+    // check valid
+    if (rc->left == rc->right || rc->top == rc->bottom)
+        return;
+
     if (do_clip)
         SelectClipRect (hdc, rc);
 
@@ -697,7 +799,7 @@ static void draw_area_from_bitmap(HDC hdc, const RECT* rc, const SKIN_BMPINFO *b
     }
 }
 
-static void draw_trackbar_thumb(HWND hWnd, HDC hdc, const RECT* pRect, const BITMAP *bmp, DWORD dwStyle)
+static void draw_trackbar_subctrl(HWND hWnd, HDC hdc, const RECT* pRect, const BITMAP *bmp, DWORD dwStyle)
 {
     /** trackbar status, pressed or hilite */
     RECT rc_draw;
@@ -706,22 +808,15 @@ static void draw_trackbar_thumb(HWND hWnd, HDC hdc, const RECT* pRect, const BIT
     SKIN_BMPINFO bmp_info;
 
     /** leave little margin */
+    rc_draw.left   = pRect->left;
+    rc_draw.top    = pRect->top ;
+    rc_draw.right  = pRect->right;
+    rc_draw.bottom = pRect->bottom;
+
     if (dwStyle & TBS_VERTICAL)
-    {
-        rc_draw.left   = pRect->left;
-        rc_draw.top    = pRect->top ;
-        rc_draw.right  = pRect->right;
-        rc_draw.bottom = pRect->bottom;
         vertical = TRUE;
-    }
     else
-    {
-        rc_draw.left   = pRect->left;
-        rc_draw.top    = pRect->top;
-        rc_draw.right  = pRect->right;
-        rc_draw.bottom = pRect->bottom;
         vertical = FALSE;
-    }
 
     bmp_info.bmp      = bmp;
     bmp_info.nr_line  = 4;
@@ -749,10 +844,10 @@ static void draw_trackbar(HWND hWnd, HDC hdc, TRACKBARINFO *info, DWORD dwStyle)
     DWORD file;
     SKIN_BMPINFO bmp_info;
     const BITMAP *bmp;
-    RECT rc_client, rc_border, rc_ruler, rc_bar;
+    RECT rc_client, rc_border, rc_ruler, rc_bar, rc_procBar;
 
     GetClientRect (hWnd, &rc_client);
-    calc_trackbar_rect (hWnd, info, dwStyle, &rc_client, &rc_ruler, &rc_bar, &rc_border);
+    calc_trackbar_rect(hWnd, info, dwStyle, &rc_client, &rc_ruler, &rc_bar, &rc_procBar, &rc_border);
 //    printf("client(x:%d y:%d w:%d h:%d) ruler(x:%d y:%d w:%d h:%d)\nbar(x:%d y:%d w:%d h:%d) border(x:%d y:%d w:%d h:%d)\n", rc_client.left, rc_client.top,
 //            rc_client.right-rc_client.left, rc_client.bottom-rc_client.top, rc_ruler.left, rc_ruler.top, rc_ruler.right-rc_ruler.left, rc_ruler.bottom-rc_ruler.top,
 //            rc_bar.left, rc_bar.top, rc_bar.right-rc_bar.left, rc_bar.bottom-rc_bar.top,
@@ -780,7 +875,8 @@ static void draw_trackbar(HWND hWnd, HDC hdc, TRACKBARINFO *info, DWORD dwStyle)
     bmp_info.style = E_SKIN_FILL_STRETCH;
 
     draw_area_from_bitmap (hdc, &rc_ruler, &bmp_info, FALSE);
-    draw_trackbar_thumb (hWnd, hdc, &rc_bar, bmp, dwStyle);
+    draw_trackbar_subctrl (hWnd, hdc, &rc_bar, bmp, dwStyle);
+    draw_trackbar_subctrl(hWnd, hdc, &rc_procBar, (const BITMAP *)info->pProcBmp, dwStyle);
 }
 
 static void TrackBarOnDraw (HWND hwnd, HDC hdc, TRACKBARINFO* pData, DWORD dwStyle)
@@ -797,7 +893,7 @@ static void TrackBarOnDraw (HWND hwnd, HDC hdc, TRACKBARINFO* pData, DWORD dwSty
         RECT    rc_bar, rc_border;
         int sliderh, EndTipLen, x, y, w, h;
 
-        calc_trackbar_rect (hwnd, pData, dwStyle, &rc_client, NULL, &rc_bar, &rc_border);
+        calc_trackbar_rect(hwnd, pData, dwStyle, &rc_client, NULL, &rc_bar, NULL, &rc_border);
 //        printf("client(x:%d y:%d w:%d h:%d) ruler(x:%d y:%d w:%d h:%d)\nbar(x:%d y:%d w:%d h:%d) border(x:%d y:%d w:%d h:%d)\n", rc_client.left, rc_client.top,
 //            rc_client.right-rc_client.left, rc_client.bottom-rc_client.top,
 //            rc_bar.left, rc_bar.top, rc_bar.right-rc_bar.left, rc_bar.bottom-rc_bar.top,
@@ -1065,6 +1161,8 @@ BtnStyle_e GetItemBtnStyle(int nPageIdx, int nSubPageIdx, int nItemIdx)
             return g_astItemBtn[i].eStyle;
         }
     }
+
+    return E_NORMAL_BUTTON;
 }
 
 void TriggleSwitchBtn(HWND hwnd)
@@ -1250,6 +1348,8 @@ BtnStyle_e GetSubPageBtnStyle(int nPageIdx, int nSubPageIdx)
             return g_astSubPageBtn[i].eStyle;
         }
     }
+
+    return E_NORMAL_BUTTON;
 }
 
 HWND GetSubPageBtnHwnd(int nPageIdx, int nSubPageIdx)
@@ -1460,7 +1560,7 @@ static LRESULT TrackBarProc(HWND hwnd, unsigned int message, WPARAM wParam, LPAR
 }
 
 
-void SetTrackBarStatus(HWND hwnd, BITMAP *pRulerBmp, BITMAP *pThumbBmp)
+void SetTrackBarStatus(HWND hwnd, BITMAP *pRulerBmp, BITMAP *pThumbBmp, BITMAP *pProcBmp)
 {
     TRACKBARINFO trackBarInfo;
     WNDPROC trackBarProc;
@@ -1479,6 +1579,7 @@ void SetTrackBarStatus(HWND hwnd, BITMAP *pRulerBmp, BITMAP *pThumbBmp)
     }
 
     trackBarInfo.pRulerBmp = pRulerBmp;
+    trackBarInfo.pProcBmp = pProcBmp;
     trackBarInfo.nLineSize = 5;
     trackBarInfo.nPageSize = 10;
     trackBarInfo.nMax = GetTrackBarMaxVal(hwnd);
@@ -1662,6 +1763,1258 @@ static void ComboxNotifyProc(HWND hwnd, LINT id, int nc, DWORD add_data)
     }
 }
 
+//=============== FileList functions =================
+// create file tree
+typedef struct _FileTree_t
+{
+    char name[256];
+    char time[32];
+    int dirFlag;
+    int depth;
+    int childCnt;
+    long size;
+    list_t headNodeList;
+    list_t childNodeList;
+} FileTree_t;
+
+static int bigMonth[] = {1, 3, 5, 7, 8, 10, 12};
+static FileTree_t g_fileRoot;
+
+char *getDayOfWeek(int day)
+{
+    switch (day)
+    {
+        case 0:
+            return "周日";
+        case 1:
+            return "周一";
+        case 2:
+            return "周二";
+        case 3:
+            return "周三";
+        case 4:
+            return "周四";
+        case 5:
+            return "周五";
+        case 6:
+            return "周六";
+    }
+
+    printf("invalid day %d\n", day);
+    return NULL;
+}
+
+// month: [1, 12]
+int getBigMonthCount(int month)
+{
+    int i = 0;
+    int count = 0;
+
+    for (i = 0; i < sizeof(bigMonth)/sizeof(int); i++)
+    {
+        if (month > bigMonth[i])
+            count++;
+        else
+            break;
+    }
+
+    //printf("count is %d, curMonth is %d\n", count, month);
+    return count;
+}
+
+// month: [1, 12]
+int getDateOfMonth(int year, int month, int date)
+{
+    int febDays = 28;
+    int monthDays = 30;
+    int curMonthDate = 0;
+
+    if ((year%400 == 0) || (year%100 != 0 && year%4 == 0))
+    {
+        febDays = 29;
+    }
+
+    if (month > 2)
+    {
+        curMonthDate = date - ((month-2)*monthDays + febDays + getBigMonthCount(month));
+    }
+    else if (month > 1)
+    {
+        curMonthDate = date - ((month-1)*monthDays + getBigMonthCount(month));
+    }
+    else
+    {
+        curMonthDate = date;
+    }
+
+    //printf("date is %d, curMonthDate is %d, febDays is %d\n", date, curMonthDate, febDays);
+    return curMonthDate;
+}
+
+void InitFileTreeRoot(FileTree_t *root, char *pRootName)
+{
+    memset(root, 0, sizeof(FileTree_t));
+    root->dirFlag = 1;
+    strcpy(root->name, pRootName);
+    INIT_LIST_HEAD(&root->headNodeList);
+    INIT_LIST_HEAD(&root->childNodeList);
+}
+
+int CreateFileTree(FileTree_t *root)
+{
+    DIR *pDir =  NULL;
+    struct dirent *ent;
+    struct stat statbuf;
+    struct tm *modifytm;
+    FileTree_t *child = NULL;
+    int dirFlag = 0;
+
+    pDir = opendir(root->name);
+    if (!pDir)
+    {
+        //printf("%s directory is not exist or open failed\n", root->name);
+        return -1;
+    }
+
+    lstat(root->name, &statbuf);
+    modifytm = localtime(&(statbuf.st_mtime));
+    root->size = statbuf.st_size;
+    sprintf(root->time, "%d/%d/%d %d:%d:%d %s", modifytm->tm_year+1900, modifytm->tm_mon+1,
+            getDateOfMonth(modifytm->tm_year+1900, modifytm->tm_mon+1, modifytm->tm_yday+1),
+            modifytm->tm_hour, modifytm->tm_min, modifytm->tm_sec,
+            getDayOfWeek(modifytm->tm_wday));
+
+    while ((ent=readdir(pDir)) != NULL)
+    {
+        if (ent->d_type & DT_DIR)
+        {
+            if (!strcmp(ent->d_name, ".") || !strcmp(ent->d_name, ".."))
+                continue;
+
+            dirFlag = 1;
+        }
+        else
+        {
+            dirFlag = 0;
+        }
+
+        child = (FileTree_t*)malloc(sizeof(FileTree_t));
+        memset(child, 0, sizeof(FileTree_t));
+        INIT_LIST_HEAD(&child->headNodeList);;
+        INIT_LIST_HEAD(&child->childNodeList);
+        if (!strcmp(root->name, "/"))
+            sprintf(child->name, "%s%s", root->name, ent->d_name);
+        else
+            sprintf(child->name, "%s/%s", root->name, ent->d_name);
+        child->depth = root->depth + 1;
+        root->childCnt++;
+        list_add_tail(&child->childNodeList, &root->headNodeList);
+
+        if (dirFlag)
+        {
+            child->dirFlag = 1;
+            CreateFileTree(child);
+        }
+        else
+        {
+            child->dirFlag = 0;
+            lstat(child->name, &statbuf);
+            modifytm = localtime(&(statbuf.st_mtime));
+            child->size = statbuf.st_size;
+            sprintf(child->time, "%d/%d/%d %d:%d:%d %s", modifytm->tm_year+1900, modifytm->tm_mon+1,
+                    getDateOfMonth(modifytm->tm_year+1900, modifytm->tm_mon+1, modifytm->tm_yday+1),
+                    modifytm->tm_hour, modifytm->tm_min, modifytm->tm_sec,
+                    getDayOfWeek(modifytm->tm_wday));
+        }
+    }
+
+    closedir(pDir);
+    pDir = NULL;
+
+    return 0;
+}
+
+void BrowseFileTree(FileTree_t *root)
+{
+    FileTree_t *pos = NULL;
+
+    if (!root)
+    {
+        printf("FileTree is not exist\n");
+        return;
+    }
+
+    printf("name:%-50sdirFlag:%-5dsize:%-8ld KB time:%-32sdepth:%-5dchildCnt:%-5d\n", root->name, root->dirFlag, (root->size+1023)/1024,
+            root->time, root->depth, root->childCnt);
+
+    if (list_empty(&root->headNodeList))
+    {
+        return;
+    }
+
+    list_for_each_entry(pos, &root->headNodeList, childNodeList)
+    {
+        BrowseFileTree(pos);
+    }
+}
+
+FileTree_t *FindFileTreeNode(FileTree_t *root, char *name)
+{
+    FileTree_t *pos = NULL;
+    FileTree_t *result = NULL;
+
+    if (!root)
+        return NULL;
+
+    if (!strcmp(root->name, name))
+        return root;
+
+    if (list_empty(&root->headNodeList))
+    {
+        //printf("%s is not exist in %s\n", name, root->name);
+        return NULL;
+    }
+
+    list_for_each_entry(pos, &(root->headNodeList), childNodeList)
+    {
+        if ((result = FindFileTreeNode(pos, name)) != NULL)
+            return result;
+    }
+
+    return NULL;
+}
+
+int InsertFileTreeNode(FileTree_t *father, FileTree_t *child)
+{
+    child->depth = father->depth + 1;
+    father->childCnt++;
+    INIT_LIST_HEAD(&child->childNodeList);
+    list_add_tail(&child->childNodeList, &father->headNodeList);
+
+    return 0;
+}
+
+int DestroyFileTree(FileTree_t *root)
+{
+    FileTree_t *pos = NULL;
+    FileTree_t *posN = NULL;
+
+    if (!root)
+    {
+        printf("root is NULL\n");
+        return 0;
+    }
+
+    if (list_empty(&root->headNodeList))
+    {
+    //    printf("FileTree is empty\n");
+        free(root);
+        root = NULL;
+        return 0;
+    }
+
+    list_for_each_entry_safe(pos, posN, &root->headNodeList, childNodeList)
+    {
+        DestroyFileTree(pos);
+    }
+
+    return 0;
+}
+
+int DeleteFileTreeNode(FileTree_t *father, FileTree_t *child)
+{
+    list_del(&child->childNodeList);
+    child->depth = 0;
+    father->childCnt--;
+
+    DestroyFileTree(child);
+    return 0;
+}
+
+
+// sort files
+// sort by name asc
+
+// sort by name desc
+
+// sort by last modify time desc
+
+// sort by last modify time asc
+
+// sort by size asc
+
+// sort by size desc
+
+
+// detect usb dir
+char *detectUsbDir()
+{
+    char *pDir = NULL;
+
+
+    return pDir;
+}
+
+
+#define DIR_TYPE        "文件夹"
+#define FILE_TYPE       "文件"
+//#define DIR_TYPE        "Dir"
+//#define FILE_TYPE       "File"
+
+#define COL_DIV         16
+#define COL_GAP         2
+#define ROW_HEIGHT      40
+
+#define COL_NUM         TABLESIZE(g_lv_caption)
+
+
+typedef struct _FILEINFO
+{
+    int fileFlag;
+    char *pFileName;
+    char *pSize;
+    char *pDate;
+}FILEINFO;
+
+typedef struct _DIRINFO
+{
+    char *pDirName;         // 绝对路径
+    FILEINFO *pChildList;
+    int nChildNum;
+}DIRINFO;
+
+static char * g_lv_caption[] =
+{
+    "名称", "类型", "大小", "修改日期"
+};
+
+static int g_colDiv[] =
+{
+    5, 2, 3, 6
+};
+
+static NCS_RDR_INFO g_rdr_info[] = {
+    { "fashion", "fashion", NULL },
+};
+
+static ST_Rect_T g_stPlayToolBarItem[11] = {{900, 540, 124, 60}, {800, 100, 124, 60}, {800, 100, 124, 60}, {800, 200, 124, 60}, {800, 200, 124, 60}, {800, 200, 124, 60},
+                                            {800, 300, 124, 60}, {800, 300, 124, 60}, {800, 300, 124, 60}, {800, 300, 124, 60}, {800, 300, 124, 60}};
+
+static PLOGFONT g_pPlayFileFont = NULL;
+static MI_BOOL g_bMoveInUpBtn = FALSE;
+
+static PLOGFONT createExplorerFont(unsigned size);
+static void lv_notify(mWidget *self, int id, int nc, DWORD add_data);
+static void updir_btn_notify(mWidget *button, int id, int nc, DWORD add_data);
+static void play_btn_notify(mWidget *button, int id, int nc, DWORD add_data);
+static void stop_btn_notify(mWidget *button, int id, int nc, DWORD add_data);
+static void playslow_btn_notify(mWidget *button, int id, int nc, DWORD add_data);
+static void playfast_btn_notify(mWidget *button, int id, int nc, DWORD add_data);
+static void add_fileinfo_item(mListView *self, NCS_LISTV_ITEMINFO *info, FileTree_t *pFileNode);
+static void playFileWnd_notify(mWidget *self, int message, int code, DWORD usrData);
+static void play_trk_notify(mTrackBar* self, int id, int code, DWORD add_data);
+static void SetBtnImg(mButton *pBtnObj, PBITMAP pBmp);
+static void show_lv_page(mListView *lvObj, MI_BOOL bShow);
+static void show_playfile_page(mListView *lvObj, MI_BOOL bShow);
+
+
+static NCS_EVENT_HANDLER lv_handlers [] = {
+    NCS_MAP_NOTIFY(NCSN_LISTV_SELCHANGED, lv_notify),
+    NCS_MAP_NOTIFY(NCSN_WIDGET_CLICKED, lv_notify),
+    {0, NULL}
+};
+
+static NCS_EVENT_HANDLER updir_btn_handlers [] = {
+    NCS_MAP_NOTIFY(NCSN_WIDGET_CLICKED, updir_btn_notify),
+    {0, NULL}
+};
+
+static NCS_EVENT_HANDLER play_btn_handlers [] = {
+    NCS_MAP_NOTIFY(NCSN_WIDGET_CLICKED, play_btn_notify),
+    {0, NULL}
+};
+
+static NCS_EVENT_HANDLER stop_btn_handlers [] = {
+    NCS_MAP_NOTIFY(NCSN_WIDGET_CLICKED, stop_btn_notify),
+    {0, NULL}
+};
+
+static NCS_EVENT_HANDLER playslow_btn_handlers [] = {
+    NCS_MAP_NOTIFY(NCSN_WIDGET_CLICKED, playslow_btn_notify),
+    {0, NULL}
+};
+
+static NCS_EVENT_HANDLER playfast_btn_handlers [] = {
+    NCS_MAP_NOTIFY(NCSN_WIDGET_CLICKED, playfast_btn_notify),
+    {0, NULL}
+};
+
+static NCS_EVENT_HANDLER play_trk_handlers [] = {
+    NCS_MAP_NOTIFY(NCSN_TRKBAR_CHANGED, play_trk_notify),
+    {0, NULL}
+};
+
+static NCS_PROP_ENTRY play_trk_props [] = {
+    {NCSP_TRKBAR_MINPOS, 0},
+    {NCSP_TRKBAR_MAXPOS, 760},
+    {NCSP_TRKBAR_CURPOS, 0},
+    {0, 0}
+};
+
+static NCS_WND_TEMPLATE _playFileWnd_ctrl_tmpl[] = {
+    // updirBtn/returnBtn
+    {
+        NCSCTRL_BUTTON,
+        IDC_PLAYFILE_BUTTON_UPPER_DIR,
+        240, 255, 80, 30,
+        WS_VISIBLE | NCSS_NOTIFY | NCSS_BUTTON_IMAGE,
+        WS_EX_NONE,
+        "updir",
+        NULL,
+        NULL,
+        updir_btn_handlers,
+        NULL,
+        0,
+        0
+    },
+
+    // current dirPath label
+    {
+        NCSCTRL_STATIC,
+        IDC_PLAYFILE_STATIC_DIR_NAME,
+        240, 255, 80, 30,
+        WS_VISIBLE,
+        WS_EX_TRANSPARENT,
+        "",
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        0,
+        0
+    },
+
+    // play files listview
+    {
+        NCSCTRL_LISTVIEW,
+        IDC_PLAYFILE_LISTVIEW_FILELIST,
+        10, 10, 320, 220,
+        WS_BORDER | WS_VISIBLE | NCSS_LISTV_SORT | NCSS_LISTV_NOTIFY,
+        WS_EX_NONE,
+        "play file list",
+        NULL,
+        g_rdr_info,
+        lv_handlers,
+        NULL,
+        0,
+        0
+    },
+
+    // playtoolbar container static
+    {
+        NCSCTRL_STATIC,
+        IDC_PLAYFILE_STATIC_PLAYTOOLBAR,
+        240, 255, 80, 30,
+        WS_NONE,        //WS_VISIBLE,
+        WS_EX_NONE,
+        "",
+        NULL,
+        g_rdr_info,
+        NULL,
+        NULL,
+        0,
+        0
+    },
+
+    // play progress trackbar
+    {
+        NCSCTRL_TRACKBAR,
+        IDC_PLAYFILE_TRACKBAR_PLAY_PROGRESS,
+        10, 260, 240, 40,
+        NCSS_TRKBAR_HORIZONTAL | NCSS_TRKBAR_NOTICK | NCSS_NOTIFY, // WS_VISIBLE
+        WS_EX_TRANSPARENT,
+        "",
+        play_trk_props,
+        //play_trk_rdr_info,
+        g_rdr_info,
+        play_trk_handlers,
+        NULL,
+        0,
+        0,
+    },
+
+    // play/pause btn
+    {
+        NCSCTRL_BUTTON,
+        IDC_PLAYFILE_BUTTON_PLAY_PAUSE,
+        240, 255, 80, 30,
+        NCSS_NOTIFY | NCSS_BUTTON_IMAGE,        //WS_VISIBLE
+        WS_EX_NONE,
+        "confirm",
+        NULL,
+        g_rdr_info,
+        play_btn_handlers,
+        NULL,
+        0,
+        0
+    },
+
+    // stop btn
+    {
+        NCSCTRL_BUTTON,
+        IDC_PLAYFILE_BUTTON_STOP,
+        240, 255, 80, 30,
+        NCSS_NOTIFY | NCSS_BUTTON_IMAGE,        //WS_VISIBLE
+        WS_EX_NONE,
+        "confirm",
+        NULL,
+        g_rdr_info,
+        stop_btn_handlers,
+        NULL,
+        0,
+        0
+    },
+
+    // play slow btn
+    {
+        NCSCTRL_BUTTON,
+        IDC_PLAYFILE_BUTTON_PLAY_SLOW,
+        240, 255, 80, 30,
+        NCSS_NOTIFY | NCSS_BUTTON_IMAGE,        //WS_VISIBLE
+        WS_EX_NONE,
+        "confirm",
+        NULL,
+        g_rdr_info,
+        playslow_btn_handlers,
+        NULL,
+        0,
+        0
+    },
+
+    // play fast btn
+    {
+        NCSCTRL_BUTTON,
+        IDC_PLAYFILE_BUTTON_PLAY_FAST,
+        240, 255, 80, 30,
+        NCSS_NOTIFY | NCSS_BUTTON_IMAGE,        //WS_VISIBLE
+        WS_EX_NONE,
+        "confirm",
+        NULL,
+        g_rdr_info,
+        playfast_btn_handlers,
+        NULL,
+        0,
+        0
+    },
+
+    // play speed label
+    {
+        NCSCTRL_STATIC,
+        IDC_PLAYFILE_STATIC_SPEED_MODE,
+        240, 255, 80, 30,
+        WS_NONE,        //WS_VISIBLE,
+        WS_EX_TRANSPARENT,
+        "",
+        NULL,
+        g_rdr_info,
+        NULL,
+        NULL,
+        0,
+        0
+    },
+
+    // play time label
+    {
+        NCSCTRL_STATIC,
+        IDC_PLAYFILE_STATIC_PLAY_TIME,
+        240, 255, 80, 30,
+        WS_NONE,        //WS_VISIBLE,
+        WS_EX_TRANSPARENT,
+        "",
+        NULL,
+        g_rdr_info,
+        NULL,
+        NULL,
+        0,
+        0
+    },
+};
+
+static NCS_EVENT_HANDLER playFileWnd_handlers[] = {
+    {MSG_CLOSE, (void *)playFileWnd_notify},
+    {0, NULL}
+};
+
+
+static NCS_MNWND_TEMPLATE playFileWnd_tmpl = {
+    NCSCTRL_DIALOGBOX,
+    IDC_PLAYFILEPAGE_WINNOW,
+    0, 0, MAINWND_W, MAINWND_H,
+    WS_VISIBLE,
+    WS_EX_NONE,
+    "",
+    NULL,
+    g_rdr_info,
+    playFileWnd_handlers,
+    _playFileWnd_ctrl_tmpl,
+    sizeof(_playFileWnd_ctrl_tmpl)/sizeof(NCS_WND_TEMPLATE),
+    0,
+    0, 0,
+};
+
+static void playFileWnd_notify(mWidget *self, int message, int code, DWORD usrData)
+{
+    if (message == MSG_CLOSE)
+    {
+        printf("playFileWnd close...\n");
+        g_bMoveInUpBtn = FALSE;
+        printf("close playFileWnd, bMoveIn:%d\n", g_bMoveInUpBtn);
+        DestroyLogFont(g_pPlayFileFont);
+        ncsDestroyWindow(self, 0);
+        hMainPlayFileWnd = HWND_INVALID;
+    }
+}
+
+static void show_lv_page(mListView *lvObj, MI_BOOL bShow)
+{
+    mStatic *pathObj = (mStatic*)ncsGetChildObj(GetParent(lvObj->hwnd), IDC_PLAYFILE_STATIC_DIR_NAME);
+    mButton *upDirObj = (mButton*)ncsGetChildObj(GetParent(lvObj->hwnd), IDC_PLAYFILE_BUTTON_UPPER_DIR);
+
+    printf("show lv page\n");
+
+    if (bShow)
+    {
+        IncludeWindowStyle(upDirObj->hwnd, WS_VISIBLE);
+        IncludeWindowStyle(lvObj->hwnd, WS_VISIBLE);
+        IncludeWindowStyle(pathObj->hwnd, WS_VISIBLE);
+    }
+    else
+    {
+        ExcludeWindowStyle(upDirObj->hwnd, WS_VISIBLE);
+        ExcludeWindowStyle(lvObj->hwnd, WS_VISIBLE);
+        ExcludeWindowStyle(pathObj->hwnd, WS_VISIBLE);
+    }
+}
+
+static void show_playfile_page(mListView *lvObj, MI_BOOL bShow)
+{
+    mStatic *pToolBarObj = (mStatic*)ncsGetChildObj(GetParent(lvObj->hwnd), IDC_PLAYFILE_STATIC_PLAYTOOLBAR);
+    mStatic *pSpeedModeObj = (mStatic*)ncsGetChildObj(GetParent(lvObj->hwnd), IDC_PLAYFILE_STATIC_SPEED_MODE);
+    mStatic *pPlayTimeObj = (mStatic*)ncsGetChildObj(GetParent(lvObj->hwnd), IDC_PLAYFILE_STATIC_PLAY_TIME);
+    mTrackBar *pProgressObj = (mTrackBar*)ncsGetChildObj(GetParent(lvObj->hwnd), IDC_PLAYFILE_TRACKBAR_PLAY_PROGRESS);
+    mButton *pPlayBtnObj = (mButton*)ncsGetChildObj(GetParent(lvObj->hwnd), IDC_PLAYFILE_BUTTON_PLAY_PAUSE);
+    mButton *pStopBtnObj = (mButton*)ncsGetChildObj(GetParent(lvObj->hwnd), IDC_PLAYFILE_BUTTON_STOP);
+    mButton *pSlowBtnObj = (mButton*)ncsGetChildObj(GetParent(lvObj->hwnd), IDC_PLAYFILE_BUTTON_PLAY_SLOW);
+    mButton *pFastBtnObj = (mButton*)ncsGetChildObj(GetParent(lvObj->hwnd), IDC_PLAYFILE_BUTTON_PLAY_FAST);
+
+    printf("show playfile page\n");
+
+    if (bShow)
+    {
+        IncludeWindowStyle(pToolBarObj->hwnd, WS_VISIBLE);
+        IncludeWindowStyle(pSpeedModeObj->hwnd, WS_VISIBLE);
+        IncludeWindowStyle(pPlayTimeObj->hwnd, WS_VISIBLE);
+        IncludeWindowStyle(pProgressObj->hwnd, WS_VISIBLE);
+        IncludeWindowStyle(pPlayBtnObj->hwnd, WS_VISIBLE);
+        IncludeWindowStyle(pStopBtnObj->hwnd, WS_VISIBLE);
+        IncludeWindowStyle(pSlowBtnObj->hwnd, WS_VISIBLE);
+        IncludeWindowStyle(pFastBtnObj->hwnd, WS_VISIBLE);
+    }
+    else
+    {
+        ExcludeWindowStyle(pToolBarObj->hwnd, WS_VISIBLE);
+        ExcludeWindowStyle(pSpeedModeObj->hwnd, WS_VISIBLE);
+        ExcludeWindowStyle(pPlayTimeObj->hwnd, WS_VISIBLE);
+        ExcludeWindowStyle(pProgressObj->hwnd, WS_VISIBLE);
+        ExcludeWindowStyle(pPlayBtnObj->hwnd, WS_VISIBLE);
+        ExcludeWindowStyle(pStopBtnObj->hwnd, WS_VISIBLE);
+        ExcludeWindowStyle(pSlowBtnObj->hwnd, WS_VISIBLE);
+        ExcludeWindowStyle(pFastBtnObj->hwnd, WS_VISIBLE);
+    }
+}
+
+static void lv_notify(mWidget *self, int id, int nc, DWORD add_data)
+{
+    mListView *lstvObj = (mListView*)self;
+
+    if (!lstvObj)
+        return;
+
+    // event occur order: selchanged clicked itemdbcliked
+    if (nc == NCSN_LISTV_SELCHANGED)
+    {
+        g_s32SelectIdx = _c(lstvObj)->indexOf(lstvObj, (HITEM)add_data);
+        printf("select item index is %d\n", g_s32SelectIdx);
+    }
+
+    if (nc == NCSN_WIDGET_CLICKED)
+    {
+        const char *fileName = _c(lstvObj)->getItemText(lstvObj, g_s32SelectIdx, 0);
+        const char *type = _c(lstvObj)->getItemText(lstvObj, g_s32SelectIdx, 1);
+        mStatic *pathObj = (mStatic*)ncsGetChildObj(GetParent(lstvObj->hwnd), IDC_PLAYFILE_STATIC_DIR_NAME);
+        mStatic *pSpeedModeObj = (mStatic*)ncsGetChildObj(GetParent(lstvObj->hwnd), IDC_PLAYFILE_STATIC_SPEED_MODE);
+        NCS_LISTV_ITEMINFO info;
+        FileTree_t *curFileNode = NULL;
+        int i = 0;
+        int color = 0x00FFFF;
+
+        if (!pathObj)
+            return;
+
+        printf("select item: name is %s, type is %s\n", fileName, type);
+
+        // confirm btn is disable utill selected file
+        if (!strcmp(type, FILE_TYPE))
+        {
+            // save selectpath & play file
+            memset(g_pu8SelectPath, 0, sizeof(g_pu8SelectPath));
+            sprintf((char*)g_pu8SelectPath, "%s/%s", (char*)g_pu8FullPath, fileName);
+
+            // hide
+            _c(pSpeedModeObj)->setProperty(pSpeedModeObj, NCSP_WIDGET_TEXT, (DWORD)"");
+            g_bShowPlayToolBar = TRUE;
+            show_lv_page(lstvObj, FALSE);
+            show_playfile_page(lstvObj, TRUE);
+            g_ePlayDirection = E_PLAY_FORWARD;
+            g_ePlayMode = E_PLAY_NORMAL_MODE;
+            g_eSpeedMode = E_NORMAL_SPEED;
+            g_u32SpeedNumerator = 1;
+            g_u32SpeedDenomonator = 1;
+            InvalidateRect(GetParent(lstvObj->hwnd), NULL, TRUE);
+
+            // sendmessage to play file
+        }
+        else
+        {
+            for (i = 0; i < COL_NUM; i++)
+            {
+                _c(lstvObj)->setBackground(lstvObj, g_s32SelectIdx, i, &color);
+            }
+
+            info.height     = ROW_HEIGHT;
+            info.flags      = 0;
+            info.foldIcon   = 0;
+            info.unfoldIcon = 0;
+            info.parent = 0;
+
+            if (!strcmp(type, DIR_TYPE))
+            {
+                if (!strcmp((char*)g_pu8FullPath, "/"))
+                    sprintf((char*)g_pu8FullPath, "%s%s", (char*)g_pu8FullPath, fileName);
+                else
+                    sprintf((char*)g_pu8FullPath, "%s/%s", (char*)g_pu8FullPath, fileName);
+
+                _c(pathObj)->setProperty(pathObj, NCSP_WIDGET_TEXT, (DWORD)g_pu8FullPath);
+                curFileNode = FindFileTreeNode(&g_fileRoot, (char*)g_pu8FullPath);
+                printf("notify, fullPath:%s pFileNode:%s\n", (char*)g_pu8FullPath, curFileNode?curFileNode->name:"null");
+
+                if (curFileNode)
+                {
+                    _c(lstvObj)->freeze(lstvObj, TRUE);
+                    _c(lstvObj)->removeAll(lstvObj);
+                    add_fileinfo_item(lstvObj, &info, curFileNode);
+                    _c(lstvObj)->freeze(lstvObj, FALSE);
+                }
+            }
+        }
+    }
+}
+
+static void updir_btn_notify(mWidget *button, int id, int nc, DWORD add_data)
+{
+    mListView *lvObj = NULL;
+    mStatic *pathObj = NULL;
+    NCS_LISTV_ITEMINFO info;
+    int i  = 0;
+    int color = 0x00FFFF;
+
+    printf("Clicked updir btn\n");
+    // do recollection stuff
+    if (!button)
+        return;
+
+    lvObj = (mListView*)ncsGetChildObj(GetParent(button->hwnd), IDC_PLAYFILE_LISTVIEW_FILELIST);
+    pathObj = (mStatic*)ncsGetChildObj(GetParent(button->hwnd), IDC_PLAYFILE_STATIC_DIR_NAME);
+
+    if(nc == NCSN_WIDGET_CLICKED)
+    {
+        g_ePlayDirection = E_PLAY_FORWARD;
+        g_ePlayMode = E_PLAY_NORMAL_MODE;
+        g_eSpeedMode = E_NORMAL_SPEED;
+        g_bMoveInUpBtn = FALSE;
+
+        if (g_bShowPlayToolBar)
+        {
+            // sendmessage to stop playing file
+
+            g_bShowPlayToolBar = FALSE;
+            show_playfile_page(lvObj, FALSE);
+            show_lv_page(lvObj, TRUE);
+            InvalidateRect(GetParent(lvObj->hwnd), NULL, TRUE);
+        }
+        else
+        {
+            if (!strcmp((char*)g_pu8FullPath, (char*)g_pu8RootPath))
+            {
+                //PostMessage(GetParent(button->hwnd), MSG_CLOSE, 0, 0);
+                PostMessage(hMainPlayFileWnd, MSG_CLOSE, 0, 0);
+            }
+            else
+            {
+                FileTree_t *curFileNode = NULL;
+                char *p = strrchr((char*)g_pu8FullPath, '/');
+                *p = 0;
+
+                _c(pathObj)->setProperty(pathObj, NCSP_WIDGET_TEXT, (DWORD)g_pu8FullPath);
+                curFileNode = FindFileTreeNode(&g_fileRoot, (char*)g_pu8FullPath);
+                printf("notify, fullPath:%s pFileNode:%s\n", (char*)g_pu8FullPath, curFileNode?curFileNode->name:"null");
+
+                if (curFileNode)
+                {
+
+                    for (i = 0; i < COL_NUM; i++)
+                    {
+                        _c(lvObj)->setBackground(lvObj, g_s32SelectIdx, i, &color);
+                    }
+
+                    info.height     = ROW_HEIGHT;
+                    info.flags      = 0;
+                    info.foldIcon   = 0;
+                    info.unfoldIcon = 0;
+                    info.parent = 0;
+
+                    _c(lvObj)->freeze(lvObj, TRUE);
+                    _c(lvObj)->removeAll(lvObj);
+                    add_fileinfo_item(lvObj, &info, curFileNode);
+                    _c(lvObj)->freeze(lvObj, FALSE);
+                }
+            }
+        }
+    }
+}
+
+static void play_btn_notify(mWidget *button, int id, int nc, DWORD add_data)
+{
+    mButton *pBtnObj = (mButton*)button;
+    printf("Clicked play/pause btn\n");
+
+    if (!button)
+        return;
+
+    if(nc == NCSN_WIDGET_CLICKED)
+    {
+        if (g_bPlaying)
+        {
+            g_bPause = !g_bPause;
+            // sendmessage to pause/resume playing
+        }
+        else
+        {
+            g_bPlaying = TRUE;
+            g_bPause = FALSE;
+
+            // sendmessage to start playing
+        }
+
+        if (g_bPause)
+            SetBtnImg(pBtnObj, &g_play_btn);
+        else
+            SetBtnImg(pBtnObj, &g_pause_btn);
+    }
+}
+
+static void stop_btn_notify(mWidget *button, int id, int nc, DWORD add_data)
+{
+    mButton *pBtnObj = (mButton*)ncsGetChildObj(GetParent(button->hwnd), IDC_PLAYFILE_BUTTON_PLAY_PAUSE);
+    mStatic *pSpeedModeObj = (mStatic*)ncsGetChildObj(GetParent(button->hwnd), IDC_PLAYFILE_STATIC_SPEED_MODE);
+    mListView *lvObj = (mListView*)ncsGetChildObj(GetParent(button->hwnd), IDC_PLAYFILE_LISTVIEW_FILELIST);
+    
+    printf("Clicked stop btn\n");
+
+    if (!button)
+        return;
+
+    if(nc == NCSN_WIDGET_CLICKED)
+    {
+        g_bPlaying = FALSE;
+        g_bPause = FALSE;
+
+        // sendmessage to stop playing
+
+        SetBtnImg(pBtnObj, &g_play_btn);
+        g_ePlayDirection = E_PLAY_FORWARD;
+        g_ePlayMode = E_PLAY_NORMAL_MODE;
+        g_eSpeedMode = E_NORMAL_SPEED;
+        g_u32SpeedNumerator = 1;
+        g_u32SpeedDenomonator = 1;
+        g_bMoveInUpBtn = FALSE;
+
+        // sendmessage to stop playing file
+
+        _c(pSpeedModeObj)->setProperty(pSpeedModeObj, NCSP_WIDGET_TEXT, (DWORD)"");
+        g_bShowPlayToolBar = FALSE;
+        show_playfile_page(lvObj, FALSE);
+        show_lv_page(lvObj, TRUE);
+        InvalidateRect(GetParent(lvObj->hwnd), NULL, TRUE);
+        
+        //PostMessage(GetParent(button->hwnd), MSG_CLOSE, 0, 0);
+    }
+}
+
+static void playslow_btn_notify(mWidget *button, int id, int nc, DWORD add_data)
+{
+    mStatic *pSpeedModeObj = (mStatic*)ncsGetChildObj(GetParent(button->hwnd), IDC_PLAYFILE_STATIC_SPEED_MODE);
+    char speedMode[16] = {0};
+
+    printf("Clicked slow btn\n");
+
+    if (!button || !pSpeedModeObj)
+        return;
+
+    if (!g_bPlaying)
+        return;
+
+    if(nc == NCSN_WIDGET_CLICKED)
+    {
+        if (g_ePlayDirection == E_PLAY_FORWARD)
+        {
+            // slow down
+            if (g_ePlayMode == E_PLAY_FAST_MODE)
+            {
+                g_eSpeedMode = (PlaySpeedMode_e)((int)g_eSpeedMode - 1);
+                g_u32SpeedNumerator = 1 << (int)g_eSpeedMode;
+                g_u32SpeedDenomonator = 1;
+
+                if (g_eSpeedMode == E_NORMAL_SPEED)
+                    g_ePlayMode = E_PLAY_NORMAL_MODE;
+            }
+            else
+            {
+                if (g_eSpeedMode < E_32X_SPEED)
+                {
+                    g_ePlayMode = E_PLAY_SLOW_MODE;
+                    g_eSpeedMode = (PlaySpeedMode_e)((int)g_eSpeedMode + 1);
+                }
+                else    // turn to play backward
+                {
+                    g_ePlayDirection = E_PLAY_BACKWARD;
+                    g_ePlayMode = E_PLAY_NORMAL_MODE;
+                    g_eSpeedMode = E_NORMAL_SPEED;
+                }
+
+                g_u32SpeedNumerator = 1;
+                g_u32SpeedDenomonator = 1 << (int)g_eSpeedMode;
+            }
+        }
+        else
+        {
+            // speed up
+            if (g_ePlayMode == E_PLAY_SLOW_MODE)
+            {
+                g_eSpeedMode = (PlaySpeedMode_e)((int)g_eSpeedMode - 1);
+                g_u32SpeedNumerator = 1;
+                g_u32SpeedDenomonator = 1 << (int)g_eSpeedMode;
+
+                if (g_eSpeedMode == E_NORMAL_SPEED)
+                {
+                    g_ePlayMode = E_PLAY_NORMAL_MODE;
+                }
+            }
+            else
+            {
+                if (g_eSpeedMode < E_32X_SPEED)
+                {
+                    g_ePlayMode = E_PLAY_FAST_MODE;
+                    g_eSpeedMode = (PlaySpeedMode_e)((int)g_eSpeedMode + 1);
+                    g_u32SpeedNumerator = 1 << (int)g_eSpeedMode;
+                    g_u32SpeedDenomonator = 1;
+                }
+            }
+        }
+
+        memset(speedMode, 0, sizeof(speedMode));
+        if (g_u32SpeedNumerator == g_u32SpeedDenomonator)
+            sprintf(speedMode, "", g_u32SpeedNumerator);
+        else if (g_u32SpeedNumerator > g_u32SpeedDenomonator)
+            sprintf(speedMode, "%dX %s", g_u32SpeedNumerator, ((g_ePlayDirection == E_PLAY_FORWARD) ? ">>" : "<<"));
+        else
+            sprintf(speedMode, "1/%dX %s", g_u32SpeedDenomonator, ((g_ePlayDirection == E_PLAY_FORWARD) ? ">>" : "<<"));
+        _c(pSpeedModeObj)->setProperty(pSpeedModeObj, NCSP_WIDGET_TEXT, (DWORD)speedMode);
+
+        // sendmessage to adjust speed
+    }
+}
+
+static void playfast_btn_notify(mWidget *button, int id, int nc, DWORD add_data)
+{
+    mStatic *pSpeedModeObj = (mStatic*)ncsGetChildObj(GetParent(button->hwnd), IDC_PLAYFILE_STATIC_SPEED_MODE);
+    char speedMode[16] = {0};
+
+    printf("Clicked fast btn\n");
+
+    if (!button || !pSpeedModeObj)
+        return;
+
+    if (!g_bPlaying)
+        return;
+
+    if(nc == NCSN_WIDGET_CLICKED)
+    {
+        if (g_ePlayDirection == E_PLAY_FORWARD)
+        {
+            // speed up
+            if (g_ePlayMode == E_PLAY_SLOW_MODE)
+            {
+                g_eSpeedMode = (PlaySpeedMode_e)((int)g_eSpeedMode - 1);
+                g_u32SpeedNumerator = 1;
+                g_u32SpeedDenomonator = 1 << (int)g_eSpeedMode;
+
+                if (g_eSpeedMode == E_NORMAL_SPEED)
+                    g_ePlayMode = E_PLAY_NORMAL_MODE;
+            }
+            else
+            {
+                if (g_eSpeedMode < E_32X_SPEED)
+                {
+                    g_ePlayMode = E_PLAY_FAST_MODE;
+                    g_eSpeedMode = (PlaySpeedMode_e)((int)g_eSpeedMode + 1);
+                    g_u32SpeedNumerator = 1 << (int)g_eSpeedMode;
+                    g_u32SpeedDenomonator = 1;
+                }
+            }
+        }
+        else
+        {
+            // slow down
+            if (g_ePlayMode == E_PLAY_FAST_MODE)
+            {
+                g_eSpeedMode = (PlaySpeedMode_e)((int)g_eSpeedMode - 1);
+                g_u32SpeedNumerator = 1 << (int)g_eSpeedMode;
+                g_u32SpeedDenomonator = 1;
+
+                if (g_eSpeedMode == E_NORMAL_SPEED)
+                    g_ePlayMode = E_PLAY_NORMAL_MODE;
+            }
+            else
+            {
+                // 1/32X speed backward to normal speed forward
+                if (g_eSpeedMode == E_32X_SPEED)
+                {
+                    g_eSpeedMode = E_NORMAL_SPEED;
+                    g_ePlayMode = E_PLAY_NORMAL_MODE;
+                    g_ePlayDirection = E_PLAY_FORWARD;
+                }
+                else
+                {
+                    g_ePlayMode = E_PLAY_SLOW_MODE;
+                    g_eSpeedMode = (PlaySpeedMode_e)((int)g_eSpeedMode + 1);
+                }
+
+                g_u32SpeedNumerator = 1;
+                g_u32SpeedDenomonator = 1 << (int)g_eSpeedMode;
+            }
+        }
+
+        memset(speedMode, 0, sizeof(speedMode));
+        if (g_u32SpeedNumerator == g_u32SpeedDenomonator)
+            sprintf(speedMode, "", g_u32SpeedNumerator);
+        else if (g_u32SpeedNumerator > g_u32SpeedDenomonator)
+            sprintf(speedMode, "%dX %s", g_u32SpeedNumerator, ((g_ePlayDirection == E_PLAY_FORWARD) ? ">>" : "<<"));
+        else
+            sprintf(speedMode, "1/%dX %s", g_u32SpeedDenomonator, ((g_ePlayDirection == E_PLAY_FORWARD) ? ">>" : "<<"));
+        _c(pSpeedModeObj)->setProperty(pSpeedModeObj, NCSP_WIDGET_TEXT, (DWORD)speedMode);
+
+        // sendmessage to adjust speed
+    }
+}
+
+static void play_trk_notify(mTrackBar* self, int id, int code, DWORD add_data)
+{
+    printf("play trackbar notify\n");
+}
+
+static void add_fileinfo_item(mListView *self, NCS_LISTV_ITEMINFO *info, FileTree_t *pFileNode)
+{
+    int i = 0, j = 0, insertNum = 0;
+    NCS_LISTV_ITEMDATA subdata[COL_NUM];
+    int color = 0xFFFFFF;
+    int nRowIdx = 0;
+    FileTree_t *pos = NULL;
+
+    // font
+    HDC clientDc = NULL;
+    PLOGFONT logfont;
+    FONTMETRICS fm;
+
+    if (!pFileNode)
+        return;
+
+    clientDc = GetClientDC(self->hwnd);
+    logfont = GetWindowFont(self->hwnd);
+    GetFontMetrics(logfont, &fm);
+    printf("old font size is max_w:%d avg_w:%d h:%d\n", fm.max_width, fm.ave_width, fm.font_height);
+
+    SelectFont(clientDc, g_pPlayFileFont);
+    logfont = GetWindowFont(self->hwnd);
+    GetFontMetrics(logfont, &fm);
+    printf("current font size is max_w:%d avg_w:%d h:%d\n", fm.max_width, fm.ave_width, fm.font_height);
+
+    info->dataSize = COL_NUM;
+    info->data = subdata;
+
+    printf("filenode: depth:%d, childCnt:%d, name:%s\n", pFileNode->depth, pFileNode->childCnt, pFileNode->name);
+
+    list_for_each_entry(pos, &pFileNode->headNodeList, childNodeList)
+    {
+        info->index = nRowIdx;
+        for (j = 0; j < COL_NUM; j++)
+        {
+            subdata[j].row = info->index;
+            subdata[j].col = j;
+            subdata[j].textColor = 0;
+            subdata[j].flags = 0;
+            subdata[j].text = "";
+            subdata[j].image = 0;
+
+            switch (j)
+            {
+                case 0:
+                    {
+                        char dirName[256];
+                        char *p = NULL;
+                        memset(dirName, 0, sizeof(dirName));
+                        memcpy(dirName, pos->name, strlen(pos->name));
+                        p = strrchr(dirName, '/');
+                        *p = 0;
+                        subdata[j].flags = NCSF_ITEM_USEBITMAP;
+                        subdata[j].text = pos->name+strlen(dirName)+1;
+                        if (pos->dirFlag)
+                            subdata[j].image = (DWORD)&g_item_folder;
+                        else
+                            subdata[j].image = (DWORD)&g_item_file;
+                    }
+                    break;
+                case 1:
+                    subdata[j].text = (char*)(pos->dirFlag ? DIR_TYPE:FILE_TYPE);
+                    break;
+                case 2:
+                    {
+                        char szSize[32];
+                        memset(szSize, 0, sizeof(szSize));
+                        sprintf(szSize, "%d KB", (pos->size+1023)/1024);
+                        subdata[j].text = szSize;
+                    }
+                    break;
+                case 3:
+                    subdata[j].text = pos->time;
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        _c(self)->addItem(self, info);
+        nRowIdx++;
+    }
+
+    for (i = 0; i < nRowIdx; i++)
+    {
+        for (j = 0; j < COL_NUM; j++)
+        {
+            _c(self)->setBackground(self, i, j, &color);
+        }
+    }
+
+    ReleaseDC(clientDc);
+}
+
+static void SetBtnImg(mButton *pBtnObj, PBITMAP pBmp)
+{
+    if (pBtnObj)
+    {
+        mPushButtonPiece *body;
+        mImagePiece *content;
+
+        _c(pBtnObj)->setProperty(pBtnObj, NCSP_BUTTON_IMAGE, (DWORD)pBmp);
+        body = (mPushButtonPiece*)((mWidget*)pBtnObj->body);
+        content = (mImagePiece*)body->content;
+        _c(content)->setProperty(content, NCSP_IMAGEPIECE_DRAWMODE, NCS_DM_SCALED);
+    }
+}
+
+static BOOL lstv_init(mDialogBox* self)
+{
+    int i;
+    FileTree_t *pCurFile = NULL;
+    NCS_LISTV_ITEMINFO info;
+    NCS_LISTV_CLMINFO lstv_clminfo;
+    HWND lstvWnd = GetDlgItem (self->hwnd, IDC_PLAYFILE_LISTVIEW_FILELIST);
+    HWND hPathLbl = GetDlgItem(self->hwnd, IDC_PLAYFILE_STATIC_DIR_NAME);
+    HWND hUpDirBtn = GetDlgItem(self->hwnd, IDC_PLAYFILE_BUTTON_UPPER_DIR);
+    HWND hToolBar = GetDlgItem(self->hwnd, IDC_PLAYFILE_STATIC_PLAYTOOLBAR);
+    HWND hPlay = GetDlgItem(self->hwnd, IDC_PLAYFILE_BUTTON_PLAY_PAUSE);
+    HWND hStop = GetDlgItem(self->hwnd, IDC_PLAYFILE_BUTTON_STOP);
+    HWND hSlow = GetDlgItem(self->hwnd, IDC_PLAYFILE_BUTTON_PLAY_SLOW);
+    HWND hFast = GetDlgItem(self->hwnd, IDC_PLAYFILE_BUTTON_PLAY_FAST);
+    HWND hTime = GetDlgItem(self->hwnd, IDC_PLAYFILE_STATIC_PLAY_TIME);
+    HWND hSpeedMode = GetDlgItem(self->hwnd, IDC_PLAYFILE_STATIC_SPEED_MODE); // not display when speed's factor is 1/1
+
+    mListView *lstvObj = (mListView*)ncsObjFromHandle(lstvWnd);
+    mStatic *pPathObj = (mStatic *)ncsObjFromHandle(hPathLbl);
+    mButton *pUpDirObj = (mButton*)ncsObjFromHandle(hUpDirBtn);
+
+    mStatic *pToolBarObj = (mStatic*)ncsObjFromHandle(hToolBar);
+    mButton *pPlayObj = (mButton*)ncsObjFromHandle(hPlay);
+    mButton *pStopObj = (mButton*)ncsObjFromHandle(hStop);
+    mButton *pSlowObj = (mButton*)ncsObjFromHandle(hSlow);
+    mButton *pFastObj = (mButton*)ncsObjFromHandle(hFast);
+    mStatic *pTimeObj = (mStatic*)ncsObjFromHandle(hTime);
+    mStatic *pSpeedModeObj = (mStatic*)ncsObjFromHandle(hSpeedMode);
+
+    if (!lstvObj || !pPathObj || !pUpDirObj)
+        return FALSE;
+
+    _c(pPathObj)->setProperty(pPathObj, NCSP_STATIC_ALIGN, NCS_ALIGN_LEFT);
+    _c(pPathObj)->setProperty(pPathObj, NCSP_WIDGET_TEXT, (DWORD)g_pu8FullPath);
+    _c(pToolBarObj)->setProperty(pToolBarObj, NCSP_WIDGET_BKIMAGE, (DWORD)&g_playtoolbar);
+    _c(pToolBarObj)->setProperty(pToolBarObj, NCSP_WIDGET_BKIMAGE_MODE, NCS_DM_SCALED);
+    SetBtnImg(pUpDirObj, &g_playfile_updir);
+    SetBtnImg(pPlayObj, &g_play_btn);           // if be paused, use g_pause_btn image
+    SetBtnImg(pStopObj, &g_stop_btn);
+    SetBtnImg(pSlowObj, &g_slow_btn);
+    SetBtnImg(pFastObj, &g_fast_btn);
+
+    // get file time info
+    char timeInfo[] = "00:00:00 / 00:30:22";
+    _c(pTimeObj)->setProperty(pTimeObj, NCSP_STATIC_ALIGN, NCS_ALIGN_CENTER);
+    _c(pTimeObj)->setProperty(pTimeObj, NCSP_WIDGET_TEXT, (DWORD)timeInfo);
+    _c(pSpeedModeObj)->setProperty(pSpeedModeObj, NCSP_STATIC_ALIGN, NCS_ALIGN_CENTER);
+
+    _c(lstvObj)->freeze(lstvObj, TRUE);
+    for (i = 0; i < COL_NUM; i++)
+    {
+        lstv_clminfo.index  = i;
+        lstv_clminfo.text   = g_lv_caption[i];
+        lstv_clminfo.width  = g_stPlayToolBarItem[2].s16PicW * g_colDiv[i] / COL_DIV - COL_GAP;
+        lstv_clminfo.pfnCmp = NULL;
+        lstv_clminfo.sort = NCSID_LSTCLM_LOSORTED;
+        lstv_clminfo.flags  = NCSF_LSTCLM_LEFTALIGN | NCSF_LSTCLM_VCENTERALIGN | NCSF_LSTHDR_LEFTALIGN;
+        _c(lstvObj)->addColumn(lstvObj, &lstv_clminfo);
+    }
+
+    info.height     = ROW_HEIGHT;
+    info.flags      = 0;
+    info.foldIcon   = 0;
+    info.unfoldIcon = 0;
+    info.parent = 0;
+
+    pCurFile = FindFileTreeNode(&g_fileRoot, (char*)g_pu8FullPath);
+    add_fileinfo_item(lstvObj, &info, pCurFile);
+    _c(lstvObj)->freeze(lstvObj, FALSE);
+
+    return TRUE;
+}
+
 void PredacteModify()
 {
     MI_S32 i = 0;
@@ -1750,8 +3103,8 @@ static void CreateSettingSubPage(HWND hWnd, int nPageIdx, int nSubPageIdx)
                                 SAVE_BUTTON_OLD_PROC(g_hMicMute, g_oldSwitchBtnProc, g_btnProcListHead);
                                 SAVE_BUTTON_OLD_PROC(g_hSpkMute, g_oldSwitchBtnProc, g_btnProcListHead);
 
-                                SetTrackBarStatus(g_hMicTrackBar, &trackbar_ruler, &trackbar_hthumb);
-                                SetTrackBarStatus(g_hSpkTrackBar, &trackbar_ruler, &trackbar_hthumb);
+                                SetTrackBarStatus(g_hMicTrackBar, &trackbar_ruler, &trackbar_hthumb, &trackbar_procBar);
+                                SetTrackBarStatus(g_hSpkTrackBar, &trackbar_ruler, &trackbar_hthumb, &trackbar_procBar);
                             }
                             break;
                         case 1:
@@ -1774,8 +3127,8 @@ static void CreateSettingSubPage(HWND hWnd, int nPageIdx, int nSubPageIdx)
                                 SetComboxHwnd(nPageIdx, nSubPageIdx, 0, g_hVthRingCombox);
                                 SetComboxHwnd(nPageIdx, nSubPageIdx, 1, g_hVtoRingCombox);
 
-                                SetTrackBarStatus(g_hVthTrackBar, &trackbar_ruler, &trackbar_hthumb);
-                                SetTrackBarStatus(g_hVtoTrackBar, &trackbar_ruler, &trackbar_hthumb);
+                                SetTrackBarStatus(g_hVthTrackBar, &trackbar_ruler, &trackbar_hthumb, &trackbar_procBar);
+                                SetTrackBarStatus(g_hVtoTrackBar, &trackbar_ruler, &trackbar_hthumb, &trackbar_procBar);
                                 SetNotificationCallback(g_hVthRingCombox, ComboxNotifyProc);
                                 SetNotificationCallback(g_hVtoRingCombox, ComboxNotifyProc);
                             }
@@ -1791,7 +3144,7 @@ static void CreateSettingSubPage(HWND hWnd, int nPageIdx, int nSubPageIdx)
                                 SetTrackBarHwnd(nPageIdx, nSubPageIdx, 0, g_hAlarmTrackBar);
                                 SetComboxHwnd(nPageIdx, nSubPageIdx, 0, g_hAlarmCombox);
 
-                                SetTrackBarStatus(g_hAlarmTrackBar, &trackbar_ruler, &trackbar_hthumb);
+                                SetTrackBarStatus(g_hAlarmTrackBar, &trackbar_ruler, &trackbar_hthumb, &trackbar_procBar);
                                 SetNotificationCallback(g_hAlarmCombox, ComboxNotifyProc);
                             }
                             break;
@@ -1816,8 +3169,8 @@ static void CreateSettingSubPage(HWND hWnd, int nPageIdx, int nSubPageIdx)
                                 SetWindowCallbackProc(g_hRingMute, GetItemBtnProc(g_hRingMute));
                                 SAVE_BUTTON_OLD_PROC(g_hRingMute, g_oldSwitchBtnProc, g_btnProcListHead);
 
-                                SetTrackBarStatus(g_hVthRingTimeTrackBar, &trackbar_ruler, &trackbar_hthumb);
-                                SetTrackBarStatus(g_hVtoRingTimeTrackBar, &trackbar_ruler, &trackbar_hthumb);
+                                SetTrackBarStatus(g_hVthRingTimeTrackBar, &trackbar_ruler, &trackbar_hthumb, &trackbar_procBar);
+                                SetTrackBarStatus(g_hVtoRingTimeTrackBar, &trackbar_ruler, &trackbar_hthumb, &trackbar_procBar);
                             }
                             break;
                         default:
@@ -2404,6 +3757,51 @@ static int LoadProjectPicture()
     {
         return -1;
     }
+    if (LoadBitmap (HDC_SCREEN, &trackbar_procBar, "appres/processbar.png"))
+    {
+        return -1;
+    }
+    if (LoadBitmap (HDC_SCREEN, &g_item_upfolder, "appres/upfolder.bmp"))
+    {
+        return -1;
+    }
+    if (LoadBitmap (HDC_SCREEN, &g_item_folder, "appres/folder.png"))
+    {
+        return -1;
+    }
+    if (LoadBitmap (HDC_SCREEN, &g_item_file, "appres/file.png"))
+    {
+        return -1;
+    }
+    if (LoadBitmap (HDC_SCREEN, &g_playfile_updir, "appres/upDir.png"))
+    {
+        return -1;
+    }
+    if (LoadBitmap (HDC_SCREEN, &g_play_btn, "appres/play.png"))
+    {
+        return -1;
+    }
+    if (LoadBitmap (HDC_SCREEN, &g_pause_btn, "appres/pause.png"))
+    {
+        return -1;
+    }
+    if (LoadBitmap (HDC_SCREEN, &g_stop_btn, "appres/stop.png"))
+    {
+        return -1;
+    }
+    if (LoadBitmap (HDC_SCREEN, &g_slow_btn, "appres/slow.png"))
+    {
+        return -1;
+    }
+    if (LoadBitmap (HDC_SCREEN, &g_fast_btn, "appres/fast.png"))
+    {
+        return -1;
+    }
+    if (LoadBitmap (HDC_SCREEN, &g_playtoolbar, "appres/playtoolbar2.png"))
+    {
+        return -1;
+    }
+
     return 0;
 }
 
@@ -2725,7 +4123,11 @@ static LRESULT SmartMicMainWinProc(HWND hWnd, unsigned int message, WPARAM wPara
     int id, code, i;
     static int start_analyze = 0;
     static int analyze_init = 0;
+    static int start_audioIn = 0;
     static MI_S32 s32PraseUiItemFlag = 0;
+#if AR_SUPPORT
+    static int do_analyze = 0;
+#endif
 
     if (((access(UI_SURFACE_CFG_FILE, F_OK))!=-1) && !s32PraseUiItemFlag)
     {
@@ -2776,9 +4178,6 @@ static LRESULT SmartMicMainWinProc(HWND hWnd, unsigned int message, WPARAM wPara
             {
                 SAVE_BUTTON_OLD_PROC(g_hSmartmicBtn[i], g_oldSmartmicBtnProc, g_btnProcListHead);
             }
-#if AR_SUPPORT
-            ST_AudioInStart();
-#endif
             INIT_LIST_HEAD(&g_trainingWordListHead);
             return 0;
         case MSG_COMMAND:
@@ -2795,14 +4194,22 @@ static LRESULT SmartMicMainWinProc(HWND hWnd, unsigned int message, WPARAM wPara
                             if (start_analyze == 1)
                             {
 #if AR_SUPPORT
-                                if (MI_SUCCESS == ST_VoiceAnalyzeStop())
+                                if (do_analyze)
                                 {
+                                    ST_VoiceAnalyzeStop();
+                                    do_analyze = 0;
+                                }
+#endif
+
+                                if (start_audioIn)
+                                {
+                                    ST_AudioInStop();
+                                    start_audioIn = 0;
                                     start_analyze = 0;
                                     SetBtnBmp(g_hSmartmicBtn[0], DWORD(&btn_notselect));
                                     SetBtnBmp(g_hSmartmicBtn[1], DWORD(&btn_notselect));
                                     SetBtnBmp(g_hSmartmicBtn[2], DWORD(&btn_notselect));
                                 }
-#endif
                             }
 
                             for (i = 0; i < sizeof(g_hSmartmicBtn)/sizeof(HWND); i++)
@@ -2841,14 +4248,28 @@ static LRESULT SmartMicMainWinProc(HWND hWnd, unsigned int message, WPARAM wPara
                             {
                                 if (!start_analyze)
                                 {
-#if AR_SUPPORT
-                                    if (MI_SUCCESS == ST_VoiceAnalyzeStart())
+                                    if (!start_audioIn)
                                     {
-                                        start_analyze = 1;
-                                        SetBtnBmp(g_hSmartmicBtn[1], DWORD(&btn_select));
-                                        SetBtnBmp(g_hSmartmicBtn[2], DWORD(&btn_notselect));
+                                        if (MI_SUCCESS == ST_AudioInStart())
+                                        {
+                                            start_audioIn = 1;
+                                        }
                                     }
+
+                                    if (start_audioIn)
+                                    {
+#if AR_SUPPORT
+                                        if (MI_SUCCESS == ST_VoiceAnalyzeStart())
+                                        {
+                                            do_analyze = 1;
 #endif
+                                            start_analyze = 1;
+                                            SetBtnBmp(g_hSmartmicBtn[1], DWORD(&btn_select));
+                                            SetBtnBmp(g_hSmartmicBtn[2], DWORD(&btn_notselect));
+#if AR_SUPPORT
+                                        }
+#endif
+                                    }
                                 }
                             }
                             else
@@ -2859,11 +4280,26 @@ static LRESULT SmartMicMainWinProc(HWND hWnd, unsigned int message, WPARAM wPara
                             if (start_analyze == 1)
                             {
 #if AR_SUPPORT
-                                if (MI_SUCCESS == ST_VoiceAnalyzeStop())
+                                if (do_analyze)
                                 {
-                                    start_analyze = 0;
-                                    SetBtnBmp(g_hSmartmicBtn[1], DWORD(&btn_notselect));
-                                    SetBtnBmp(g_hSmartmicBtn[2], DWORD(&btn_select));
+
+                                    if (MI_SUCCESS == ST_VoiceAnalyzeStop())
+                                    {
+                                        do_analyze = 0;
+                                    }
+                                }
+
+                                if (!do_analyze)
+                                {
+#endif
+                                    if (MI_SUCCESS == ST_AudioInStop())
+                                    {
+                                        start_analyze = 0;
+                                        start_audioIn = 0;
+                                        SetBtnBmp(g_hSmartmicBtn[1], DWORD(&btn_notselect));
+                                        SetBtnBmp(g_hSmartmicBtn[2], DWORD(&btn_select));
+                                    }
+#if AR_SUPPORT
                                 }
 #endif
                             }
@@ -2891,19 +4327,12 @@ static LRESULT SmartMicMainWinProc(HWND hWnd, unsigned int message, WPARAM wPara
         case MSG_DESTROY:
             DestroyAllControls (hWnd);
             hMainSmartMicWnd = HWND_INVALID;
-#if AR_SUPPORT
-            if (start_analyze == 1)
-            {
-                ST_VoiceAnalyzeStop();
-                start_analyze = 0;
-            }
+
             if (analyze_init == 1)
             {
                 ST_VoiceAnalyzeDeInit();
                 analyze_init = 0;
             }
-            ST_AudioInStop();
-#endif
             return 0;
         case MSG_CLOSE:
             printf("close my window....0x%x\n", hWnd);
@@ -4010,6 +5439,8 @@ void *msg_toUIcmd_process(void *args)
             }
         }
     }
+
+    return NULL;
 }
 
 //==================================================Picture View================
@@ -4283,7 +5714,7 @@ static NCS_WND_TEMPLATE _ctrl_tmpl[] =
 static NCS_MNWND_TEMPLATE mainwnd_tmpl =
 {
     NCSCTRL_DIALOGBOX,
-    1,
+    IDC_PICTURE_WINDOW,
     0, 0, MAINWND_W, MAINWND_H,
     WS_VISIBLE,
     WS_EX_NONE,
@@ -4308,7 +5739,9 @@ typedef struct tagDspItem
     BOOL    cdpath;
     char    path [PATH_MAX + 1];
     char    name [NAME_MAX + 1];
-    char    layer [LEN_LAYER_NAME + 1];
+#ifdef _MGRM_PROCESSES
+        char layer[LEN_LAYER_NAME + 1];
+#endif
     char    bmp_path [PATH_MAX + NAME_MAX + 1];
     mImagePiece *imagepiece;
     BITMAP  bmp;
@@ -4410,6 +5843,15 @@ static PLOGFONT createLogFont(unsigned size)
                          size, 0);
 }
 
+static PLOGFONT createExplorerFont(unsigned size)
+{
+    return CreateLogFont("ttf", "helvetica", "GB2312",
+                         FONT_WEIGHT_BOOK, FONT_SLANT_ROMAN,
+                         FONT_SETWIDTH_NORMAL, FONT_OTHER_AUTOSCALE,
+                         FONT_UNDERLINE_NONE, FONT_STRUCKOUT_NONE,
+                         size, 0);
+}
+
 static int s_onMouseEvent(mHotPiece *_self, int message, WPARAM wParam, LPARAM lParam, mObject *owner)
 {
     printf("%s(message=%d)\n", __FUNCTION__, message);
@@ -4418,7 +5860,6 @@ static int s_onMouseEvent(mHotPiece *_self, int message, WPARAM wParam, LPARAM l
     {
         case MSG_LBUTTONDOWN:
         {
-
             RECT rc;
             WORD x, y;
             int i;
@@ -4493,19 +5934,99 @@ static int s_onMouseEvent(mHotPiece *_self, int message, WPARAM wParam, LPARAM l
                     if (hMainWnd != HWND_INVALID)
                     {
                         SettingMainWindow(hMainWnd);
-                        break;
                     }
+                    break;
                 case 2:
                     if (hMainWnd != HWND_INVALID)
                     {
                         SmartMicMainWindow(hMainWnd);
-                        break;
                     }
+                    break;
+                case 5:
+                    if (hMainWnd != HWND_INVALID)
+                    {
+
+                    }
+                    break;
+                case 7:
+                    if (hMainWnd != HWND_INVALID)
+                    {
+                        // create playtoolbar test
+
+                        int id, code, i;
+                        static MI_S32 s32PraseUiItemFlag = 0;
+
+                        // detect usb device
+                        memset(g_pu8RootPath, 0, sizeof(g_pu8RootPath));
+                        if (MI_SUCCESS != ST_DetectUsbDev((char*)g_pu8RootPath, sizeof(g_pu8RootPath)))
+                        {
+                            printf("Please insert u disk first\n");
+                            break;
+                        }
+
+                        // create filetree according to rootpath
+                        InitFileTreeRoot(&g_fileRoot, (char*)g_pu8RootPath);
+                        CreateFileTree(&g_fileRoot);
+                        //BrowseFileTree(&g_fileRoot);
+
+                        // get ui layout from xml
+                        if (((access(UI_SURFACE_CFG_FILE, F_OK))!=-1) && !s32PraseUiItemFlag)
+                        {
+                            if (0 == ST_XmlPraseUiCfg((MI_U8*)UI_SURFACE_CFG_FILE, (MI_U8*)"PlayToolBar_LAYOUT", g_stPlayToolBarItem))
+                            {
+                                for (int i = 0; i < sizeof(g_stPlayToolBarItem)/sizeof(ST_Rect_T); i++)
+                                {
+                                    printf("index=%d (%d-%d-%d-%d)...\n", i,
+                                        g_stPlayToolBarItem[i].s32X, g_stPlayToolBarItem[i].s32Y, g_stPlayToolBarItem[i].s16PicW, g_stPlayToolBarItem[i].s16PicH);
+                                }
+                                s32PraseUiItemFlag = 1;
+                            }
+                        }
+
+                        memset(g_pu8FullPath, 0, sizeof(g_pu8FullPath));
+                        printf("root path is %s\n", (char*)g_pu8RootPath);
+                        if( (access((char*)g_pu8SelectPath, F_OK)) != -1 && strstr((char*)g_pu8SelectPath, (char*)g_pu8RootPath))
+                        {
+                            char *p = NULL;
+                            memcpy(g_pu8FullPath, g_pu8SelectPath, strlen((char*)g_pu8SelectPath));
+                            p = strrchr((char*)g_pu8FullPath, '/');
+                            *p = 0;
+                        }
+                        else
+                        {
+                            strcpy((char*)g_pu8FullPath, (char*)g_pu8RootPath);
+                        }
+
+                        printf("init full path:%s\n", g_pu8FullPath);
+
+                        // init controller pos & size
+                        for (i = 0; i < sizeof(_playFileWnd_ctrl_tmpl)/sizeof(NCS_WND_TEMPLATE); i++)
+                        {
+                            _playFileWnd_ctrl_tmpl[i].x = g_stPlayToolBarItem[i].s32X;
+                            _playFileWnd_ctrl_tmpl[i].y = g_stPlayToolBarItem[i].s32Y;
+                            _playFileWnd_ctrl_tmpl[i].w = g_stPlayToolBarItem[i].s16PicW;
+                            _playFileWnd_ctrl_tmpl[i].h = g_stPlayToolBarItem[i].s16PicH;
+                        }
+
+                        playFileWnd_tmpl.ctrls = _playFileWnd_ctrl_tmpl;
+                        g_pPlayFileFont = createExplorerFont(36);
+                        g_bShowPlayToolBar = FALSE;
+
+                        mDialogBox* dialog = (mDialogBox *)ncsCreateMainWindowIndirect (&playFileWnd_tmpl, hMainWnd);
+                        lstv_init(dialog);
+                        hMainPlayFileWnd = dialog->hwnd;
+                    }
+                    break;
                 case 10:
                     if (hMainWnd != HWND_INVALID)
                     {
                         //TimeMainWindow(hMainWnd);     //for test
-                        break;
+                    }
+                    break;
+                case 11:
+                    if (hMainWnd != HWND_INVALID)
+                    {
+
                     }
                 default:
                     break;
@@ -4583,10 +6104,10 @@ static BOOL naviBar_getItems(void)
 
         if(GetValueFromEtcFile(APP_INFO_FILE, section, "name", item->name, NAME_MAX) != ETC_OK)
             goto error;
-
+#ifdef _MGRM_PROCESSES
         if(GetValueFromEtcFile(APP_INFO_FILE, section, "layer", item->layer, LEN_LAYER_NAME) != ETC_OK)
             goto error;
-
+#endif
         if(GetValueFromEtcFile(APP_INFO_FILE, section, "icon", item->bmp_path, PATH_MAX + NAME_MAX) != ETC_OK)
             goto error;
 
@@ -5011,6 +6532,7 @@ int ST_CreateMainWindow_New(int s32DispW, int s32DispH)
                                  mymain_handlers,
                                  0);
     hMainWnd = mymain->hwnd;
+    mGEffInit();
     sem_init(&g_toUI_sem,0,0);
     g_run = TRUE;
     g_tid_msg = pthread_create(&g_tid_msg, NULL, msg_toUIcmd_process, NULL);
@@ -5022,6 +6544,8 @@ int ST_CreateMainWindow_New(int s32DispW, int s32DispH)
     }
 
     MainWindowThreadCleanup (mymain->hwnd);
+
+    return 0;
 }
 
 int ST_InitMiniGui(int argc, const char **args)
@@ -5029,14 +6553,15 @@ int ST_InitMiniGui(int argc, const char **args)
     if (InitGUI (argc ,args) != 0) {
         return 1;
     }
+#ifdef _MGRM_PROCESSES
     if (!ServerStartup (0 , 0 , 0)) {
         fprintf (stderr,
                  "Can not start the server of MiniGUI-Processes: mginit.\n");
         return 1;
     }
+#endif
     ncsInitialize();
     ncs4TouchInitialize();
-    mGEffInit();
 
     INIT_LIST_HEAD(&g_btnProcListHead);
     INIT_LIST_HEAD(&g_trackBarProcListHead);

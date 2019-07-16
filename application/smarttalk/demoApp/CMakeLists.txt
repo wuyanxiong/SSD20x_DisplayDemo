@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8.0)
 
 ## project 路径,配置自己的project路径
-set(PROJECT_PTH /home/beal.wu/master_i6/sdk/verify/application/smarttalk/demoApp/../../../../../project)
+set(PROJECT_PTH /home/yongliang.li/i6/sdk/verify/application/smarttalk/demoApp/../../../../../project)
 
 ### SET CROSS-COMPILE ###
 set(CMAKE_SYSTEM_NAME Linux)
@@ -16,7 +16,7 @@ set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
 set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -s")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -s")
-set(CROSS_COMPILER_VERSION 4.8.3)
+set(CROSS_COMPILER_VERSION 8.2.1)
 ###
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -mfloat-abi=hard -mfpu=neon -Wno-write-strings")
@@ -34,6 +34,7 @@ add_subdirectory(modules/src/system)
 add_subdirectory(modules/src/stream)
 add_subdirectory(modules/src/xmlprase)
 add_subdirectory(modules/src/gpio)
+add_subdirectory(modules/src/usb)
 
 include_directories(${PROJECT_PTH}/release/include)
 include_directories(${PROJECT_PTH}/kbuild/4.9.84/i2m/include/uapi/mstar)
@@ -55,7 +56,7 @@ link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../3partyLib/omron/lib)
 link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../3partyLib/xml/lib)
 
 set(demoApp_libs
-	st_gpio st_common st_ao st_voice st_disp st_font st_venc st_stream st_socket st_vdec st_system st_xmlprase  
+	st_usb st_gpio st_common st_ao st_voice st_disp st_font st_venc st_stream st_socket st_vdec st_system st_xmlprase
 	mi_sys mi_disp mi_panel mi_ao mi_gfx mi_divp mi_venc mi_vdec mi_common g711 g726 APC_LINUX SRC_LINUX mi_ai AEC_LINUX
 )
 #	UsageEnvironment BasicUsageEnvironment groupsock liveMedia UsageEnvironment
@@ -71,7 +72,7 @@ set (gui_static_libs
 	${CMAKE_CURRENT_SOURCE_DIR}/../3partyLib/guilib/static/${CROSS_COMPILER_VERSION}/libmgutils.a
 	${CMAKE_CURRENT_SOURCE_DIR}/../3partyLib/guilib/static/${CROSS_COMPILER_VERSION}/libmgeff.a
 	${CMAKE_CURRENT_SOURCE_DIR}/../3partyLib/guilib/static/${CROSS_COMPILER_VERSION}/libmgplus.a
-	${CMAKE_CURRENT_SOURCE_DIR}/../3partyLib/guilib/static/${CROSS_COMPILER_VERSION}/libminigui_procs.a
+	${CMAKE_CURRENT_SOURCE_DIR}/../3partyLib/guilib/static/${CROSS_COMPILER_VERSION}/libminigui_ths.a
 	${CMAKE_CURRENT_SOURCE_DIR}/../3partyLib/guilib/static/${CROSS_COMPILER_VERSION}/libfreetype.a
 	${CMAKE_CURRENT_SOURCE_DIR}/../3partyLib/guilib/static/${CROSS_COMPILER_VERSION}/libjpeg.a
 	${CMAKE_CURRENT_SOURCE_DIR}/../3partyLib/guilib/static/${CROSS_COMPILER_VERSION}/libpng.a
@@ -89,6 +90,9 @@ set (omron_static_libs
 )
 set (xml_static_libs
 	${CMAKE_CURRENT_SOURCE_DIR}/../3partyLib/xml/lib/libxml2.a
+)
+set (v4l2_libs
+	st_v4l2
 )
 
 add_definitions(-std=gnu++11)

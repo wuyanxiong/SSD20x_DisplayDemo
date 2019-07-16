@@ -4965,6 +4965,8 @@ typedef LRESULT (* WNDPROC)(HWND, UINT, WPARAM, LPARAM);
 
 extern MG_EXPORT HWND __mg_hwnd_desktop;
 
+
+
 /**
  * \def HWND_DESKTOP
  * \brief Desktop window handle.

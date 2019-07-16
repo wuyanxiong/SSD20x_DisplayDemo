@@ -165,4 +165,39 @@
 	  <ItemArea ItemIndex="3" X="240" Y="40" W="120" H="60">
 	  </ItemArea>
 	</SettingWindow_LAYOUT>
+    <PlayToolBar_LAYOUT>
+      <!--updir-->
+      <ItemArea ItemIndex="0" X="0" Y="0" W="50" H="50">
+	  </ItemArea>
+      <!--Dir Name-->
+	  <ItemArea ItemIndex="1" X="64" Y="0" W="960" H="50">
+	  </ItemArea>
+      <!--ListView-->
+	  <ItemArea ItemIndex="2" X="0" Y="50" W="1024" H="550">
+	  </ItemArea>
+      <!--ToolBarContainer-->
+      <ItemArea ItemIndex="3" X="0" Y="520" W="1024" H="80">
+	  </ItemArea>
+      <!--TrackBar-->
+      <ItemArea ItemIndex="4" X="20" Y="520" W="984" H="30">
+	  </ItemArea>
+      <!--Play/Pause-->
+      <ItemArea ItemIndex="5" X="20" Y="550" W="50" H="50">
+	  </ItemArea>
+      <!--Stop-->
+      <ItemArea ItemIndex="6" X="75" Y="550" W="50" H="50">
+	  </ItemArea>
+      <!--PlaySlow-->
+      <ItemArea ItemIndex="7" X="130" Y="550" W="50" H="50">
+	  </ItemArea>
+      <!--PlayFast-->
+      <ItemArea ItemIndex="8" X="185" Y="550" W="50" H="50">
+	  </ItemArea>
+      <!--SpeedMode-->
+      <ItemArea ItemIndex="9" X="240" Y="550" W="80" H="50">
+	  </ItemArea>
+      <!--CurTime-->
+      <ItemArea ItemIndex="10" X="804" Y="560" W="200" H="50">
+	  </ItemArea>
+    </PlayToolBar_LAYOUT>
 </UiSurface_LAYOUT>

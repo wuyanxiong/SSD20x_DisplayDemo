@@ -6,9 +6,9 @@
 #define SOCKET_DEBUG_FLAG 0
 //=======================================================
 
-#define DEVICE_CFG_FILE "/config/smartBD.xml"
-#define UI_SURFACE_CFG_FILE "/config/smartLayout.xml"
-#define DEV_INFO_CFG_FILE "/config/smartDevInfo.xml"
+#define DEVICE_CFG_FILE "/customer/smartBD.xml"
+#define UI_SURFACE_CFG_FILE "/customer/smartLayout.xml"
+#define DEV_INFO_CFG_FILE "/customer/smartDevInfo.xml"
 
 
 #define CALL_ID_LEN 8 //Çø+¶°+Â¥+·¿ 2+2+2+2 "01021102" "Room 02, 11th Floor, Uint 2, Group 1"

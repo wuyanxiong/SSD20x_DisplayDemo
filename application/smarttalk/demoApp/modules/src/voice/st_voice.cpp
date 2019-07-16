@@ -589,14 +589,14 @@ MI_S32 ST_AudioInStart()
     stAiVqeConfig.stAgcCfg.u32DropGainMax = 60;            //[0, 60]
     stAiVqeConfig.stAgcCfg.u32NoiseGateAttenuationDb = 10;  //[0, 100]
     stAiVqeConfig.stAgcCfg.u32ReleaseTime = 10;             //[1, 20]
-
+    stAiVqeConfig.u32ChnNum = 1;
     //Eq
     stAiVqeConfig.stEqCfg.eMode = E_MI_AUDIO_ALGORITHM_MODE_USER;
     for (i = 0; i < sizeof(stAiVqeConfig.stEqCfg.s16EqGainDb) / sizeof(stAiVqeConfig.stEqCfg.s16EqGainDb[0]); i++)
     {
        stAiVqeConfig.stEqCfg.s16EqGainDb[i] = 5;
     }
-    
+
 
 
     ExecFunc(MI_AI_SetPubAttr(AiDevId, &stAiSetAttr), MI_SUCCESS);
@@ -856,11 +856,11 @@ MI_S32 ST_VoiceAnalyzeInit()
     snprintf(szLicenseBinFile, sizeof(szLicenseBinFile) - 1, "%s/CybLicense.bin", CSPOTTER_PATH_PREFIX);
     system("date -s \"2017-12-06 20:49\"");
     hCSpotter = CSpotter_InitWithFiles(szEngineLibFile, szCommandBinFile, szLicenseBinFile, &nErr);
-	if(hCSpotter == NULL)
-	{
-		ST_ERR("CSpotter_InitWithFiles fail, err:%d\n", nErr);
-		return -1;
-	}
+    if(hCSpotter == NULL)
+    {
+        ST_ERR("CSpotter_InitWithFiles fail, err:%d\n", nErr);
+        return -1;
+    }
 
     nCmdNum = CSpotter_GetCommandNumber(hCSpotter);
     for (i = 0; i < nCmdNum; i ++)
@@ -871,23 +871,24 @@ MI_S32 ST_VoiceAnalyzeInit()
         {
             // skip the same cmd
             if(strcmp(szCmdBuf, szCmdBufTemp) != 0)
-    		{
-    			printf("%s %d\n", szCmdBuf, nCmdNum);
-    			strcpy(szCmdBufTemp, szCmdBuf);
+            {
+                printf("%s %d\n", szCmdBuf, nCmdNum);
+                memset(szCmdBufTemp, 0, sizeof(szCmdBufTemp));
+                strcpy(szCmdBufTemp, szCmdBuf);
                 memset(msg, 0, 16);
-            	msg[0] = MSG_TYPE_SMARTMIC_START;
-            	msg[1] = i;
-            	msg[2] = (unsigned long)szCmdBuf;
-            	msg[3] = strlen(szCmdBuf);
+                msg[0] = MSG_TYPE_SMARTMIC_START;
+                msg[1] = i;
+                msg[2] = (unsigned long)szCmdBuf;
+                msg[3] = strlen(szCmdBuf);
                 g_toUI_msg_queue.send_message(MODULE_MSG,(void*)msg,sizeof(msg),&g_toUI_sem);
                 usleep(3*1000);
-		    }
+            }
         }
     }
 
     pstVoiceMng->hCSpotter = hCSpotter;
     pstVoiceMng->bInit = TRUE;
-    
+
     return MI_SUCCESS;
 }
 

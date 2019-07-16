@@ -329,6 +329,8 @@ MI_S32 Stream_StartPlayVideo(void)
     g_VideoBuf.s32NaluPackSize = 0;
     g_VideoBuf.u32TimeStamp = 0x1000;
     g_VideoBuf.seq_no = 0;
+    //g_VideoBuf.VideoBuff = (MI_U8 *)malloc(64*1024);
+    ST_DBG("Stream_StartPlayVideo xxxxx %p\n", g_VideoBuf.VideoBuff);
     StreamDebug(100);
 
     if (NULL == g_VideoBuf.VideoBuff)
@@ -376,33 +378,59 @@ MI_S32 Stream_StopPlayVideo(void)
     StreamDebug(201);
     StreamDebug(202);
     pthread_mutex_destroy(&g_StreamSync.video_dec_lock);
+    ST_DBG("Stream_StopPlayVideo 1111\n");
     StreamDebug(203);
     g_s32VideoNodeCnt = 0;
     if (g_VideoBuf.VideoBuff)
     {
+        ST_DBG("Stream_StopPlayVideo 2222\n");
         memset(g_VideoBuf.VideoBuff, 0x0, 64*1024);
         if (g_VideoBuf.VideoBuff)
         {
             ST_DBG("Stream_StopPlayVideo aaaa %p\n", g_VideoBuf.VideoBuff);
+            //Stream_free(g_VideoBuf.VideoBuff, __LINE__);
+            ST_DBG("Stream_StopPlayVideo bbbb\n");
         }
+        //g_VideoBuf.VideoBuff = NULL;
+        ST_DBG("Stream_StopPlayVideo 3333\n");
     }
     else
     {
-        ST_DBG("Stream_StopPlayVideo\n");
+        ST_DBG("Stream_StopPlayVideo 44444\n");
     }
+    ST_DBG("Stream_StopPlayVideo ccccc\n");
 
     return 0;
 }
 
 MI_S32 Stream_StartSendVideo(unsigned long IPaddr)
 {
+#if 0
+    VencRunParam_T stVencRunPara;
 
+    stVencRunPara.s32Socket = ST_CreateSendVideoSocket();
+    stVencRunPara.s32SaveFileFlag = FALSE;
+    stVencRunPara.IPaddr = IPaddr;
+    stVencRunPara.s32VencChn = MAIN_STREAM_VENC;
+    ST_DBG("___________Stream_StartSendVideo  socket = %d ... send ip:0x%x\n", stVencRunPara.s32Socket, IPaddr);
+    if (MI_SUCCESS != ST_VencStartGetStream(&stVencRunPara))
+    {
+        ST_ERR("Start send video fail socket=%d\n", stVencRunPara.s32Socket);
+        return -1;
+    }
+#endif
     return MI_SUCCESS;
 }
 
 MI_S32 Stream_StopSendVideo()
 {
-
+#if 0
+    if (MI_SUCCESS != ST_VencStopGetStream())
+    {
+        ST_ERR("Stop send video fail !!!\n");
+        return -1;
+    }
+#endif
     return MI_SUCCESS;
 }
 
@@ -566,6 +594,7 @@ MI_S32 StartPlayAudioFile(const char *WavAudioFile, MI_S32 s32AoVolume)
         ExecFunc(MI_AO_GetVqeAttr(g_AoDevId, g_AoChn, &stAoGetVqeConfig), MI_SUCCESS);
         ExecFunc(MI_AO_EnableVqe(g_AoDevId, g_AoChn), MI_SUCCESS);
     }
+
 
     ExecFunc(MI_AO_SetVolume(g_AoDevId, s32AoVolume), MI_SUCCESS);
     ExecFunc(MI_AO_GetVolume(g_AoDevId, &s32AoGetVolume), MI_SUCCESS);

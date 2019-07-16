@@ -231,6 +231,14 @@ int GetAnnexbNALU (NALU_t *nalu, MI_S32 chn)
     return (pos+rewind);
 }
 
+void dump(NALU_t *n)
+{
+    if (!n)
+        return;
+    //printf(" len: %d  ", n->len);
+    //printf("nal_unit_type: %x\n", n->nal_unit_type);
+}
+
 void *ST_VdecSendStream(void *args)
 {
     MI_SYS_ChnPort_t stChnPort;
@@ -278,10 +286,10 @@ void *ST_VdecSendStream(void *args)
         readfp = fopen("720P25.h264", "rb"); //ES
         ST_DBG("open current dir es file\n");
     }
-    else if ((access("/config/720P25.h264", F_OK))!=-1)
+    else if ((access("/customer/720P25.h264", F_OK))!=-1)
     {
-        readfp = fopen("/config/720P25.h264", "rb"); //ES
-        ST_DBG("open /config dir es file\n");
+        readfp = fopen("/customer/alsa.conf720P25.h264", "rb"); //ES
+        ST_DBG("open /customer dir es file\n");
     }
     if (!readfp)
     {
@@ -385,6 +393,172 @@ void *ST_VdecSendStream(void *args)
     return NULL;
 }
 
+MI_S32 ST_CreateVdec4Uvc(MI_S32 s32VdecChn, MI_S32 s32DivpChn, MI_U32 u32VdecW, MI_U32 u32VdecH, MI_S32 s32CodecType)
+{
+    ST_Rect_T stCrop= {0, 0, 0, 0};
+    ST_CreateVdecChannel(s32VdecChn, s32CodecType, u32VdecW, u32VdecH, VIDEO_DISP_W, VIDEO_DISP_H);
+    ST_CreateDivpChannel(s32DivpChn, 1920, 1080, E_MI_SYS_PIXEL_FRAME_YUV422_YUYV, stCrop);
+    ST_ModuleBind(E_MI_MODULE_ID_VDEC, 0, s32VdecChn, 0,
+                E_MI_MODULE_ID_DIVP, 0, s32DivpChn, 0); //VDEC->DIVP
+    return MI_SUCCESS;
+}
+MI_S32 ST_DestroyVdec4Uvc(MI_S32 s32VdecChn, MI_S32 s32DivpChn)
+{
+    ST_ModuleUnBind(E_MI_MODULE_ID_VDEC, 0, s32VdecChn, 0,
+                    E_MI_MODULE_ID_DIVP, 0, s32DivpChn, 0); //VDEC->DIVP
+    ST_DestroyVdecChannel(s32VdecChn);
+    ST_DestroyDivpChannel(s32DivpChn);
+
+    return MI_SUCCESS;
+}
+#if 0
+void *GetVucBuffer(void *args)
+{
+    MI_SYS_BufConf_t stBufConf;
+    MI_SYS_BufInfo_t stBufInfo;
+    MI_SYS_BUF_HANDLE hSnapFace;
+    MI_SYS_ChnPort_t stSysChnPort;
+    DeviceContex_t *ctx = NULL;
+    Packet pkt;
+    MI_S32 s32Ret;
+    //FILE *savefp = NULL;
+    if((access("/dev/video0", F_OK))!=-1)
+    {
+        ST_DBG("found uvc device\n");
+    }
+    else
+    {
+        ST_ERR("uvc device not found\n");
+        return NULL;
+    }
+    v4l2_dev_init(&ctx, "/dev/video0");
+    //savefp = fopen("/var/tmp.es", "w+");
+
+    v4l2_dev_set_fmt(ctx, V4L2_PIX_FMT_H264, 640, 480);
+    v4l2_read_header(ctx);
+    while (g_V4l2Run)
+    {
+        s32Ret = v4l2_read_packet(ctx, &pkt);
+        if(s32Ret == -EAGAIN) {
+            usleep(10000);
+            continue;
+        }
+        #if 0
+       MI_SYS_GetCurPts(&stBufConf.u64TargetPts);
+       stBufConf.eBufType = E_MI_SYS_BUFDATA_FRAME;
+       stBufConf.stFrameCfg.eFormat = E_MI_SYS_PIXEL_FRAME_YUV_SEMIPLANAR_420;
+       stBufConf.stFrameCfg.eFrameScanMode = E_MI_SYS_FRAME_SCAN_MODE_PROGRESSIVE;
+       stBufConf.stFrameCfg.u16Width = 640;
+       stBufConf.stFrameCfg.u16Height = 480;
+
+        stSysChnPort.eModId = E_MI_MODULE_ID_DIVP;
+        stSysChnPort.u32DevId = 0;
+        stSysChnPort.u32ChnId = UVC_DIVP_CHN;
+        stSysChnPort.u32PortId = 0;
+        s32Ret = MI_SYS_ChnInputPortGetBuf(&stSysChnPort, &stBufConf, &stBufInfo, &hSnapFace, 1000);
+        if (MI_SUCCESS != s32Ret)
+        {
+            //ST_ERR("GetInputPortBuf Fail...\n");
+            v4l2_read_packet_end(ctx, &pkt);
+            continue;
+        }
+        memcpy(stBufInfo.stFrameData.pVirAddr[0], pkt.data, 640*480);
+        memcpy(stBufInfo.stFrameData.pVirAddr[1], pkt.data+640*480, (640*480) >> 1);
+        s32Ret = MI_SYS_ChnInputPortPutBuf(hSnapFace ,&stBufInfo , FALSE);
+        if (MI_SUCCESS != s32Ret)
+        {
+            ST_ERR("Inject UVC divp Buffer fail...\n");
+            v4l2_read_packet_end(ctx, &pkt);
+            continue;
+        }
+        #endif
+        if (s32Ret >= 0)
+        {
+            if (pkt.size > 4)
+            {
+                if (MI_SUCCESS != ST_SendVdecFrame(UVC_VDEC_CHN, pkt.data, pkt.size))
+                {
+                    ST_ERR("Send UVC stream to vdec, return fail, len = %d\n", pkt.size);
+                }
+            }
+            //printf("Get Pkt size%d\n", pkt.size);
+            //save_file(pkt.data, pkt.size, 0);
+            //if (savefp)
+            //{
+            //    fwrite(pkt.data, pkt.size, 1, savefp);
+            //}
+            v4l2_read_packet_end(ctx, &pkt);
+        }
+        //usleep(30*1000);
+    }
+    v4l2_read_close(ctx);
+
+    v4l2_dev_deinit(ctx);
+}
+#endif
+static MI_S32 ST_VideoModuleInit()
+{
+    MI_U32 u32VencDevID = 0;
+    MI_SYS_ChnPort_t stChnPort;
+    ST_Rect_T stCrop = {0, 0, 0, 0};
+
+    ST_CreateVdec4Uvc(UVC_VDEC_CHN, UVC_DIVP_CHN, 1920, 1080, E_MI_VDEC_CODEC_TYPE_H264);
+
+    //ST_CreateDivpChannel(MAINVENC_DIVP_CHN, VIDEO_DISP_W, 480, E_MI_SYS_PIXEL_FRAME_YUV_SEMIPLANAR_420, stCrop);
+    ST_CreateDivpChannel(LOCAL_DISP_DIVP_CHN, VIDEO_DISP_W, VIDEO_DISP_H, E_MI_SYS_PIXEL_FRAME_YUV422_YUYV, stCrop);
+    ST_CreateDivpChannel(FD_DIVP_CHN, VIDEO_DISP_W, VIDEO_DISP_H, E_MI_SYS_PIXEL_FRAME_YUV_SEMIPLANAR_420, stCrop);
+
+    memset(&stChnPort, 0, sizeof(MI_SYS_ChnPort_t));
+    stChnPort.eModId = E_MI_MODULE_ID_DIVP;
+    stChnPort.u32DevId = 0;
+    stChnPort.u32ChnId = LOCAL_DISP_DIVP_CHN;
+    stChnPort.u32PortId = 0;
+
+    MI_SYS_SetChnOutputPortDepth(&stChnPort, 1, 4);
+
+    //=====================Create Venc Chn==================================
+    //ST_VencCreateChannel(MAIN_STREAM_VENC, E_ST_H264, VIDEO_DISP_W, 480, 30);
+    //MI_VENC_GetChnDevid(MAIN_STREAM_VENC, &u32VencDevID);
+
+    //ST_ModuleBind(E_MI_MODULE_ID_DIVP, 0, UVC_DIVP_CHN, 0,
+    //            E_MI_MODULE_ID_DIVP, 0, MAINVENC_DIVP_CHN, 0); //VENC: DIVP->DIVP
+    ST_ModuleBind(E_MI_MODULE_ID_DIVP, 0, UVC_DIVP_CHN, 0,
+                E_MI_MODULE_ID_DIVP, 0, LOCAL_DISP_DIVP_CHN, 0); //DISP: DIVP->DIVP
+    ST_ModuleBind(E_MI_MODULE_ID_DIVP, 0, UVC_DIVP_CHN, 0,
+                E_MI_MODULE_ID_DIVP, 0, FD_DIVP_CHN, 0); //FD: DIVP->DIVP
+
+    //ST_ModuleBind(E_MI_MODULE_ID_DIVP, 0, MAINVENC_DIVP_CHN, 0,
+    //            E_MI_MODULE_ID_VENC, u32VencDevID, MAIN_STREAM_VENC, 0); //DIVP->VENC
+
+    //ST_ModuleBind(E_MI_MODULE_ID_DIVP, 0, LOCAL_DISP_DIVP_CHN, 0,
+    //            E_MI_MODULE_ID_DISP, 0, 0, 0); //DIVP->VENC
+    return 0;
+}
+
+static MI_S32 ST_VideoModuleDeInit()
+{
+    ST_DispChnInfo_t stDispChnInfo;
+    //MI_U32 u32VencDevID = 0;
+
+    //ST_ModuleUnBind(E_MI_MODULE_ID_DIVP, 0, UVC_DIVP_CHN, 0,
+    //            E_MI_MODULE_ID_DIVP, 0, MAINVENC_DIVP_CHN, 0); //VENC: DIVP->DIVP
+    ST_ModuleUnBind(E_MI_MODULE_ID_DIVP, 0, UVC_DIVP_CHN, 0,
+                E_MI_MODULE_ID_DIVP, 0, LOCAL_DISP_DIVP_CHN, 0); //DISP: DIVP->DIVP
+    ST_ModuleUnBind(E_MI_MODULE_ID_DIVP, 0, UVC_DIVP_CHN, 0,
+                E_MI_MODULE_ID_DIVP, 0, FD_DIVP_CHN, 0); //FD: DIVP->DIVP
+
+    ST_CreateVdec4Uvc(UVC_VDEC_CHN, UVC_DIVP_CHN, 1920, 1080, E_MI_VDEC_CODEC_TYPE_H264);
+    ST_Disp_DeInit(0, 0, 1);
+
+    //ST_DestroyDivpChannel(MAINVENC_DIVP_CHN);
+    ST_DestroyDivpChannel(LOCAL_DISP_DIVP_CHN);
+    ST_DestroyDivpChannel(FD_DIVP_CHN);
+
+    //ST_VencDestroyChannel(MAIN_STREAM_VENC);
+
+    return 0;
+}
+
 MI_S32 ST_CreateVdec2DispPipe(MI_S32 s32VdecChn, MI_S32 s32DivpChn, MI_U32 u32VdecW, MI_U32 u32VdecH, MI_S32 s32CodecType)
 {
     ST_Rect_T stCrop= {0, 0, 0, 0};
@@ -422,10 +596,10 @@ void ST_LocalCameraDisp(MI_S32 s32Disp)
             StartPlayAudioFile("8K_16bit_MONO.wav", 2);
             ST_DBG("open current dir wav file\n");
         }
-        else if ((access("/config/8K_16bit_MONO.wav", F_OK))!=-1)
+        else if ((access("/customer/8K_16bit_MONO.wav", F_OK))!=-1)
         {
-            StartPlayAudioFile("/config/8K_16bit_MONO.wav", 2);
-            ST_DBG("open /config dir wav file\n");
+            StartPlayAudioFile("/customer/8K_16bit_MONO.wav", 2);
+            ST_DBG("open /custome dir wav file\n");
         }
         ST_DBG("Bind ST_LocalCameraDisp...\n");
     }
@@ -439,10 +613,10 @@ void ST_LocalCameraDisp(MI_S32 s32Disp)
             StopPlayAudioFile();
             ST_DBG("open current dir wav file\n");
         }
-        else if ((access("/config/8K_16bit_MONO.wav", F_OK))!=-1)
+        else if ((access("/customer/8K_16bit_MONO.wav", F_OK))!=-1)
         {
             StopPlayAudioFile();
-            ST_DBG("open /config dir wav file\n");
+            ST_DBG("open /customer dir wav file\n");
         }
         ST_DBG("UnBind ST_LocalCameraDisp...\n");
     }
@@ -556,7 +730,7 @@ MI_S32 ST_OMRON_SDKInit(MI_S32 s32DepVpeChannel, ST_OMRON_Source_S *pstOmronSrcC
     ST_OMRON_Mng_S* pstOMRONMng = &g_stOMRONMng;
     ST_OMRON_Osd_S *pstOMRONOsd = g_stOMRONOsd;
 
-    ST_VPE_PortInfo_T stPortInfo;    
+    ST_VPE_PortInfo_T stPortInfo;
 
     // init params
     pstOMRONMng->u32Width = VIDEO_DISP_W;
@@ -624,9 +798,9 @@ MI_S32 ST_OMRON_OSD_Init(MI_U16 u16DispW, MI_U16 u16DispH)
     MI_RGN_HANDLE hRgnHandle;
     ST_OMRON_Osd_S *pstOMRONOsd = g_stOMRONOsd;
     hRgnHandle = MAX_OSD_NUM - 1;
-    
+
     ST_OSD_VarInit();
-    
+
     memset(&stOsdAttr, 0, sizeof(ST_OSD_Attr_T));
     stOsdAttr.stRect.s32X = 0;
     stOsdAttr.stRect.s32Y = 0;
@@ -782,10 +956,10 @@ void *msg_toAPPcmd_process(void *args)
                         StartPlayAudioFile("8K_16bit_MONO.wav", 2);
                         ST_DBG("open current dir wav file\n");
                     }
-                    else if ((access("/config/8K_16bit_MONO.wav", F_OK))!=-1)
+                    else if ((access("/customer/8K_16bit_MONO.wav", F_OK))!=-1)
                     {
-                        StartPlayAudioFile("/config/8K_16bit_MONO.wav", 2);
-                        ST_DBG("open /config dir wav file\n");
+                        StartPlayAudioFile("/customer/8K_16bit_MONO.wav", 2);
+                        ST_DBG("open /customer dir wav file\n");
                     }
                     continue;
                 case MSG_TYPE_STOP_SEND_VIDEO:
@@ -794,10 +968,10 @@ void *msg_toAPPcmd_process(void *args)
                         StopPlayAudioFile();
                         ST_DBG("open current dir wav file\n");
                     }
-                    else if ((access("/config/8K_16bit_MONO.wav", F_OK))!=-1)
+                    else if ((access("/customer/8K_16bit_MONO.wav", F_OK))!=-1)
                     {
                         StopPlayAudioFile();
-                        ST_DBG("open /config dir wav file\n");
+                        ST_DBG("open /customer dir wav file\n");
                     }
                     continue;
                 case MSG_TYPE_CREATE_XMLCFG:
@@ -891,7 +1065,7 @@ void *msg_toAPPcmd_process(void *args)
                 }
                 case MSG_TYPE_RECV_MONITOR_CMD: //net recv
                 {
-                    if (TRUE == recvmsg[2]) //remote stat monitor, init local 
+                    if (TRUE == recvmsg[2]) //remote stat monitor, init local
                     {
                         ST_DBG("net recv MSG_TYPE_RECV_MONITOR_CMD start\n");
                         if (E_DEVICE_IDLE == g_s32Sys_Status)
@@ -1228,7 +1402,19 @@ int main(int argc, const char* args[])
     MI_DISP_LAYER dispLay = ST_DISP_LAYER0;
     ST_DispChnInfo_t stDispChnInfo;
 
-    MI_SYS_Init();
+    // pull gpio4 high (BL)
+//#if 0
+//    system("echo 4 > /sys/class/gpio/export");
+//    system("echo out > /sys/class/gpio/gpio4/direction");
+//    system("echo 1 > /sys/class/gpio/gpio4/value");
+//#else
+//    char *pGpioValue = "0";
+//    ST_Gpio_Export(4);
+//    ST_Gpio_SetDirection(4, 1);
+//    ST_Gpio_SetValue(4, (MI_S8*)pGpioValue, strlen(pGpioValue));
+//#endif
+
+
     stPubAttr.stSyncInfo.u16Vact = stPanelParam.u16Height;
     stPubAttr.stSyncInfo.u16Vbb = stPanelParam.u16VSyncBackPorch;
     stPubAttr.stSyncInfo.u16Vfb = stPanelParam.u16VTotal - (stPanelParam.u16VSyncWidth + stPanelParam.u16Height + stPanelParam.u16VSyncBackPorch);
@@ -1289,19 +1475,31 @@ int main(int argc, const char* args[])
     MI_GFX_Open();//for minigui
     ST_System_InitCfg();
     ST_InitMiniGui(argc, args);
-
+    //ST_VideoModuleInit();
+    //ST_CreateVdec2DispPipe(UVC_VDEC_CHN, 0, VIDEO_STREAM_W, VIDEO_STREAM_H, E_MI_VDEC_CODEC_TYPE_H264);
+#if 0
+    ST_OMRON_Source_S stOmronSrcChn;
+    stOmronSrcChn.enModule = E_MI_MODULE_ID_DIVP;//FD FR src chn
+    stOmronSrcChn.u32Dev = 0;
+    stOmronSrcChn.u32Chn = FD_DIVP_CHN;
+    stOmronSrcChn.u32Port = 0;
+    ST_OMRON_OSD_Init(VIDEO_DISP_W, VIDEO_DISP_H);
+    ST_OMRON_SDKInit(0, &stOmronSrcChn);
+#endif
     ST_Socket_CmdProcessInit();
     sem_init(&g_toAPP_sem,0,0);
     g_AppRun = TRUE;
     pthread_create(&t_app_msg, NULL, msg_toAPPcmd_process, NULL);
     g_V4l2Run = TRUE;
+    //pthread_create(&t_v4l2_vpe, NULL, ST_VdecSendStream, NULL);
+    //pthread_create(&t_v4l2_vpe, NULL, GetVucBuffer, NULL);
+    system("/config/riu_w 0x101e 0x9 0x10");
 
-    ST_CreateMainWindow_New(MAINWND_W, MAINWND_H);
+	ST_CreateMainWindow_New(MAINWND_W, MAINWND_H);
     ST_DeinitMiniGui(0);
     ST_DBG("Exit main program\n");
+    ST_VideoModuleDeInit();
 
-    ST_Disp_DeInit(dispDev, dispLay, 1);
-    MI_GFX_Close();//for minigui
     g_AppRun = FALSE;
     g_V4l2Run = FALSE;
     if (0 == pthread_join(t_app_msg, NULL))

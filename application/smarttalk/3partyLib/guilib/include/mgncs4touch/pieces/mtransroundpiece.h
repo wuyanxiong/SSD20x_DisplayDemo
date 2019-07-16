@@ -118,10 +118,11 @@ typedef struct _mShapeTransRoundPiece mShapeTransRoundPiece;
     int hgs_height; \
     BOOL use_shadow; \
     TRANROUND_FILLMODE fill_mode; \
-    TRANROUND_PAINTMODE paint_mode;
+    TRANROUND_PAINTMODE paint_mode; \
+    void *paintBuffer;
 
 struct _mShapeTransRoundPiece
-{   
+{
     mShapeTransRoundPieceHeader(mShapeTransRoundPiece)
 };
    

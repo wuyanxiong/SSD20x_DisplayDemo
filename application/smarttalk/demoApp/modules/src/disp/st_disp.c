@@ -91,6 +91,7 @@ MI_S32 ST_Disp_ClearChn(MI_DISP_LAYER s32Layer, MI_S32 s32Port)
 
     return MI_SUCCESS;
 }
+
 MI_S32 ST_Disp_EnableChn(MI_DISP_LAYER s32Layer, MI_S32 s32Port)
 {
     ExecFunc(MI_DISP_EnableInputPort(s32Layer, s32Port), MI_SUCCESS);
@@ -103,3 +104,4 @@ MI_S32 ST_Disp_DisableChn(MI_DISP_LAYER s32Layer, MI_S32 s32Port)
 
     return MI_SUCCESS;
 }
+

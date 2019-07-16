@@ -307,6 +307,8 @@ MI_S32 ST_OMRON_UnInitLibrary(ST_OMRON_Mng_S* pstOMRONMng)
         OKAO_CO_DeleteHandle(pstOMRONMng->hCo);
         pstOMRONMng->hCo = NULL;
     }
+
+    return OMCV_NORMAL;
 }
 
 MI_S32 ST_OMRON_BDSetParams(ST_OMRON_Mng_S* pstOMRONMng)
