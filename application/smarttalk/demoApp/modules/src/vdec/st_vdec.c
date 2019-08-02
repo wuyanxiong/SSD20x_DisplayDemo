@@ -29,7 +29,7 @@ MI_S32 ST_CreateVdecChannel(MI_S32 s32VdecChn, MI_S32 s32CodecType,
     stVdecChnAttr.u32PicHeight  = u32Height;
     stVdecChnAttr.u32Priority   = 0;
     stVdecChnAttr.eCodecType    = s32CodecType;
-    stVdecChnAttr.eInplaceMode = 0;
+    stVdecChnAttr.eDpbBufMode = 0;
 
     STCHECKRESULT(MI_VDEC_CreateChn(s32VdecChn, &stVdecChnAttr));
     STCHECKRESULT(MI_VDEC_StartChn(s32VdecChn));

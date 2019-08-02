@@ -645,8 +645,6 @@ MI_S32 ST_AudioInStop()
     pstAudioInMng->bRunFlag = FALSE;
     pthread_join(pstAudioInMng->pt, NULL);
 
-    sleep(1);
-
 #if AUDIO_IN_TO_AO
     _AudioOutStop_();
 #endif
@@ -755,9 +753,6 @@ static void *_VoiceAnalyzeProc_(void *pdata)
             ST_ERR("fwrite failed, u32Len = %d, s32Ret = %d\n", pstVoiceFrame->frameLen, s32Ret);
         }
 #endif
-
-        // reduce CSpotter_AddSample core dump
-        usleep(1000*10);
 
         // ST_DBG("pFrameData:%p, frameLen:%d\n", pstVoiceFrame->pFrameData, pstVoiceFrame->frameLen);
         s32Ret = CSpotter_AddSample(pstVoiceMng->hCSpotter, (short*)pstVoiceFrame->pFrameData, pstVoiceFrame->frameLen / 2);
@@ -920,7 +915,6 @@ MI_S32 ST_VoiceAnalyzeStop()
     {
         pstVoiceMng->bRunFlag = FALSE;
         pthread_join(pstVoiceMng->pt, NULL);
-        sleep(1);
     }
 
     return MI_SUCCESS;

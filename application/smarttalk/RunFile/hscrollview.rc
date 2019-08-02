@@ -3,72 +3,72 @@ app_nr=12
 
 [navi-app0]
 path=./
-name=call
+name=通话
 layer=
 icon=appres/call.jpg
 
 [navi-app1]
 path=../camera/
-name=vdec
+name=视频解码
 layer=
 icon=appres/camera.jpg
 
 [navi-app2]
 path=../entertainment/
-name=smartmic
+name=智能语音
 layer=
 icon=appres/entertainment.jpg
 
 [navi-app3]
 path=../location/
-name=picture
+name=相册
 layer=
 icon=appres/location.jpg
 
 [navi-app4]
 path=../message/
-name=message
+name=信息
 layer=
 icon=appres/message.jpg
 
 [navi-app5]
 path=../mail/
-name=mail
+name=邮件
 layer=
 icon=appres/mail.jpg
 
 [navi-app6]
 path=../multimedia/
-name=multimedia
+name=多媒体
 layer=
 icon=appres/multimedia.jpg
 
 [navi-app7]
 path=../film/
-name=film
+name=录像
 layer=
 icon=appres/film.jpg
 
 [navi-app8]
 path=../message/
-name=message
+name=简讯
 layer=
 icon=appres/message.jpg
 
 [navi-app9]
 path=../setting/
-name=setting
+name=设置
 layer=
 icon=appres/setting.jpg
 
 [navi-app10]
 path=../time/
-name=test
+name=测试
 layer=
 icon=appres/time.jpg
 
 [navi-app11]
 path=../weather/
-name=weather
+name=天气
 layer=
 icon=appres/weather.jpg

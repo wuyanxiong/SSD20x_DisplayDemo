@@ -4703,6 +4703,7 @@ void CalledMainWindow (HWND hwnd)
     hMainCalledWnd = CreateMainWindow(&CreateInfo);
 }
 
+void MonitorMainWindow (HWND hwnd);
 static char g_CallStr[64];
 static LRESULT CallMainWinProc(HWND hWnd, unsigned int message, WPARAM wParam, LPARAM lParam)
 {
@@ -4938,6 +4939,11 @@ static LRESULT CallMainWinProc(HWND hWnd, unsigned int message, WPARAM wParam, L
             DestroyMainWindow (hWnd);
             MainWindowCleanup (hWnd);
             return 0;
+        case MSG_USER_MONITORDOOR:
+            {
+                MonitorMainWindow(hWnd);
+                return 0;
+            }
     }
 
     return DefaultMainWinProc (hWnd, message, wParam, lParam);
@@ -5406,7 +5412,7 @@ void *msg_toUIcmd_process(void *args)
                     {
                         printf("CalledMainWindow\n");
                         s32g_CallType = 1;
-                        CalledMainWindow(hMainWnd);
+                        PostMessage(hMainWnd, MSG_USER_DOORCALLME, 0, 0);
                     }
                     break;
                 }
@@ -5430,7 +5436,7 @@ void *msg_toUIcmd_process(void *args)
                 {
                     if (HWND_INVALID != hMainCallWnd)
                     {
-                         MonitorMainWindow(hMainCallWnd);
+                         PostMessage(hMainCallWnd, MSG_USER_MONITORDOOR, 0, 0);
                     }
                     break;
                 }
@@ -5843,6 +5849,24 @@ static PLOGFONT createLogFont(unsigned size)
                          size, 0);
 }
 
+static PLOGFONT CreateArialFont(unsigned size)
+{
+    return CreateLogFont(FONT_TYPE_NAME_SCALE_TTF, "fzcircle", "ISO8859-1",
+                         FONT_WEIGHT_REGULAR, FONT_SLANT_ROMAN,
+                         FONT_FLIP_NIL, FONT_OTHER_NIL,
+                         FONT_UNDERLINE_NONE, FONT_STRUCKOUT_NONE,
+                         size, 0);
+}
+
+static PLOGFONT CreateFzcircleFont(unsigned size)
+{
+    return CreateLogFont(FONT_TYPE_NAME_SCALE_TTF, "fzcircle", "GB2312",
+                         FONT_WEIGHT_REGULAR, FONT_SLANT_ROMAN,
+                         FONT_FLIP_NIL, FONT_OTHER_NIL,
+                         FONT_UNDERLINE_NONE, FONT_STRUCKOUT_NONE,
+                         size, 0);
+}
+
 static PLOGFONT createExplorerFont(unsigned size)
 {
     return CreateLogFont("ttf", "helvetica", "GB2312",
@@ -6242,7 +6266,7 @@ static BOOL _mymain_onCreate_naviBar(mMainWnd *self, DWORD dwAddData)
         //_c(textPiece)->setProperty(textPiece, NCSP_LABELPIECE_LABEL, (DWORD)cmdGb2312);
         _c(textPiece)->setProperty(textPiece, NCSP_LABELPIECE_LABEL, (DWORD)icon_info.app_items[i].name);
         _c(textPiece)->setProperty(textPiece, NCSP_TEXTPIECE_TEXTCOLOR, (DWORD)0xFF0000FF);
-        _c(textPiece)->setProperty(textPiece, NCSP_TEXTPIECE_LOGFONT, (DWORD)createLogFont(15));
+        _c(textPiece)->setProperty(textPiece, NCSP_TEXTPIECE_LOGFONT, (DWORD)CreateFzcircleFont(15));
         _c(textPiece)->setProperty(textPiece, NCSP_LABELPIECE_AUTOWRAP, (DWORD)TRUE);
         _c(content)->addContent(content, textPiece, ITEM_INTERVAL + (itemH + ITEM_INTERVAL) * i + shiftx, itemH + ITEM_INTERVAL);
     }
@@ -6484,6 +6508,12 @@ static BOOL my_main_hittest(mWidget *self, int message)
     return TRUE;
 }
 
+static BOOL doorcallme(mWidget *self, int message)
+{
+    CalledMainWindow(self->hwnd);
+    return TRUE;
+}
+
 static NCS_EVENT_HANDLER mymain_handlers[] =
 {
     {MSG_CREATE, (void *)mymain_onCreate},
@@ -6491,7 +6521,7 @@ static NCS_EVENT_HANDLER mymain_handlers[] =
     {MSG_LBUTTONDOWN, (void *)SpeedMeterMessageHandler},
     {MSG_LBUTTONUP, (void *)SpeedMeterMessageHandler},
     {MSG_MOUSEMOVE, (void *)SpeedMeterMessageHandler},
-//    {MSG_HITTEST, (void *)my_main_hittest},
+    {MSG_USER_DOORCALLME, (void *)doorcallme},
     {0, NULL}
 };
 

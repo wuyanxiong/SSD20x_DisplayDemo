@@ -209,7 +209,11 @@
 
 #define BK_COLOR_KEY 0xFF112233
 
-#define MSG_USER_SETTING (MSG_USER+1)
+#define MSG_USER_DOORCALLME (MSG_USER+1)
+#define MSG_USER_DOORHANGUP (MSG_USER+2)
+#define MSG_USER_ROOMHANGUP (MSG_USER+3)
+#define MSG_USER_ROOMCALLME (MSG_USER+4)
+#define MSG_USER_MONITORDOOR (MSG_USER+5)
 
 int ST_InitMiniGui(int argc, const char **args);
 int ST_DeinitMiniGui(int not_used);

@@ -243,7 +243,7 @@ MI_S32 ProcessRecvAnalyzeCmd(MI_S32 s32Socket, unsigned long IPaddr)
                         else if(s32TmpLen > 0)
                         {
                             s32AlreadyRecvLen += s32TmpLen;
-                            if (s32TmpLen == s32PacketLen)
+                            if (s32AlreadyRecvLen == s32PacketLen)
                             {
                                 memset(u32Msg, 0, 16);
                                 u32Msg[0] = MSG_TYPE_SOCKET_RECV_EXT_PACK;
