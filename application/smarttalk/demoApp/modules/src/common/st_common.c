@@ -109,67 +109,56 @@ MI_S32 ST_GetTimingInfo(MI_S32 s32ApTiming, MI_S32 *ps32HdmiTiming, MI_S32 *ps32
     {
         case E_ST_TIMING_720P_50:
             *ps32DispTiming = E_MI_DISP_OUTPUT_720P50;
-            *ps32HdmiTiming = E_MI_HDMI_TIMING_720_50P;
             *pu16DispW = 1280;
             *pu16DispH = 720;
             break;
         case E_ST_TIMING_720P_60:
             *ps32DispTiming = E_MI_DISP_OUTPUT_720P60;
-            *ps32HdmiTiming = E_MI_HDMI_TIMING_720_60P;
             *pu16DispW = 1280;
             *pu16DispH = 720;
             break;
         case E_ST_TIMING_1080P_50:
             *ps32DispTiming = E_MI_DISP_OUTPUT_1080P50;
-            *ps32HdmiTiming = E_MI_HDMI_TIMING_1080_50P;
             *pu16DispW = 1920;
             *pu16DispH = 1080;
             break;
         case E_ST_TIMING_1080P_60:
             *ps32DispTiming = E_MI_DISP_OUTPUT_1080P60;
-            *ps32HdmiTiming = E_MI_HDMI_TIMING_1080_60P;
             *pu16DispW = 1920;
             *pu16DispH = 1080;
             break;
         case E_ST_TIMING_1600x1200_60:
             *ps32DispTiming = E_MI_DISP_OUTPUT_1600x1200_60;
-            *ps32HdmiTiming = E_MI_HDMI_TIMING_1600x1200_60P;
             *pu16DispW = 1600;
             *pu16DispH = 1200;
             break;
         case E_ST_TIMING_1440x900_60:
             *ps32DispTiming = E_MI_DISP_OUTPUT_1440x900_60;
-            *ps32HdmiTiming = E_MI_HDMI_TIMING_1440x900_60P;
             *pu16DispW = 1440;
             *pu16DispH = 900;
             break;
         case E_ST_TIMING_1280x1024_60:
             *ps32DispTiming = E_MI_DISP_OUTPUT_1280x1024_60;
-            *ps32HdmiTiming = E_MI_HDMI_TIMING_1280x1024_60P;
             *pu16DispW = 1280;
             *pu16DispH = 1024;
             break;
         case E_ST_TIMING_1024x768_60:
             *ps32DispTiming = E_MI_DISP_OUTPUT_1024x768_60;
-            *ps32HdmiTiming = E_MI_HDMI_TIMING_1024x768_60P;
             *pu16DispW = 1024;
             *pu16DispH = 768;
             break;
         case E_ST_TIMING_2560x1440_30:
             *ps32DispTiming = E_MI_DISP_OUTPUT_2560x1440_30;
-            *ps32HdmiTiming = E_MI_HDMI_TIMING_1440_30P;
             *pu16DispW = 2560;
             *pu16DispH = 1440;
             break;
         case E_ST_TIMING_3840x2160_30:
             *ps32DispTiming = E_MI_DISP_OUTPUT_3840x2160_30;
-            *ps32HdmiTiming = E_MI_HDMI_TIMING_4K2K_30P;
             *pu16DispW = 1920;
             *pu16DispH = 1080;
             break;
         case E_ST_TIMING_3840x2160_60:
             *ps32DispTiming = E_MI_DISP_OUTPUT_3840x2160_60;
-            *ps32HdmiTiming = E_MI_HDMI_TIMING_4K2K_60P;
             *pu16DispW = 3840;
             *pu16DispH = 2160;
             break;

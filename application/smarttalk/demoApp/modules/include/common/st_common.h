@@ -11,7 +11,7 @@ extern "C"{
 
 
 #include "mi_sys.h"
-#include "mi_hdmi_datatype.h"
+//#include "mi_hdmi_datatype.h"
 #include "mi_disp_datatype.h"
 
 #define TALK_VDEC_CHN 0

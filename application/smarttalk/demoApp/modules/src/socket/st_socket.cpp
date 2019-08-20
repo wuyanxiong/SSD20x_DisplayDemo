@@ -154,7 +154,7 @@ MI_S32 ProcessRecvAnalyzeCmd(MI_S32 s32Socket, unsigned long IPaddr)
 {
     struct timeval timeout;
     MI_U32 u32Msg[4];
-    MI_S32 s32TmpLen = 0;  
+    MI_S32 s32TmpLen = 0;
     MI_S32 s32Ret = 0, s32HeaderMagicNum;
     MI_U16 u16RecvCmd = 0;
     fd_set readfd;
@@ -162,7 +162,7 @@ MI_S32 ProcessRecvAnalyzeCmd(MI_S32 s32Socket, unsigned long IPaddr)
     FD_ZERO(&readfd);
     timeout.tv_sec = 1;
     timeout.tv_usec = 0;
-    
+
     SocketDebug(101);
     u8RecvBuf = (MI_U8 *)malloc(1024);
     memset(u8RecvBuf, 0, 1024);
@@ -189,7 +189,7 @@ MI_S32 ProcessRecvAnalyzeCmd(MI_S32 s32Socket, unsigned long IPaddr)
                 u16RecvCmd = *(MI_U16*)(u8RecvBuf + 8);
                 u16RecvCmd = ntohs(u16RecvCmd);
                 SocketDebug(103);
-                
+
                 memset(u32Msg, 0, 16);
                 u32Msg[0] = MSG_TYPE_SOCKET_RECV_NORMAL_PACK;
                 u32Msg[1] = (unsigned long)u8RecvBuf; //free by caller
@@ -199,7 +199,7 @@ MI_S32 ProcessRecvAnalyzeCmd(MI_S32 s32Socket, unsigned long IPaddr)
             }
             else if (s32PacketLen > s32TmpLen)
             {
-                MI_U8* u8TmpPack = (MI_U8*)malloc(s32PacketLen+1);     
+                MI_U8* u8TmpPack = (MI_U8*)malloc(s32PacketLen+1);
                 if(NULL == u8TmpPack)
                 {
                     SocketDebug(104);
@@ -234,7 +234,7 @@ MI_S32 ProcessRecvAnalyzeCmd(MI_S32 s32Socket, unsigned long IPaddr)
                             {
                                 SocketDebug(108);
                                 continue;
-                            }                     
+                            }
                             ST_ERR("Recv buffer error...\n");
                             free(u8TmpPack);
                             u8TmpPack = NULL;
@@ -259,12 +259,12 @@ MI_S32 ProcessRecvAnalyzeCmd(MI_S32 s32Socket, unsigned long IPaddr)
                                 continue;
                             }
                         }
-                    } 
+                    }
                 }//while(1)
-            }	     	   	   
+            }
         }
     }
-    
+
     return 0;
 }
 
@@ -322,7 +322,7 @@ void * ST_Socket_Listen_Task(void* args){
             msg[0] = MSG_TYPE_SOCKET_RECV_CONNECT;
             msg[1] = tmp_sock;
             msg[2] = dstaddr.sin_addr.s_addr;
-            msg[3] = 0; 
+            msg[3] = 0;
             g_SocketProcess_Queue.send_message(MODULE_MSG,(void*)msg,sizeof(msg),&g_SocketProcess_Sem);
             ST_DBG("Accept a connect, create new socket(%d) !!\n", tmp_sock);
             t_count++;
@@ -330,10 +330,10 @@ void * ST_Socket_Listen_Task(void* args){
         else
         {
             ;//ST_DBG("accept ERROR 0x%x",errno);
-        }     
+        }
         usleep(100*1000); //avoid connect too fast
     }
-    
+
     return NULL;
 }
 
@@ -449,7 +449,7 @@ MI_S32 ST_SocketSem_timeoutWait(sem_t *sem, MI_S32 s32Sec, MI_S32 s32NanoSec)
     ts.tv_sec += s32Sec;
     ts.tv_nsec += s32NanoSec;
 
-    #define NSECTOSEC    1000000000 
+    #define NSECTOSEC    1000000000
     ts.tv_sec += ts.tv_nsec/NSECTOSEC; //Nanoseconds [0 .. 999999999]
     ts.tv_nsec = ts.tv_nsec%NSECTOSEC;
 
@@ -462,14 +462,14 @@ void *ST_Socket_MainProcess(void *args)
     Msg* pMsg = NULL;
     unsigned long recvmsg[4];
     unsigned long sendmsg[4];
-    
+
     while (g_ProcessRun)
     {
         memset(recvmsg,0,sizeof(recvmsg));
         //ST_SocketSem_timeoutWait(&g_SocketProcess_Sem, 0, 1000*1000*1000);
         sem_wait(&g_SocketProcess_Sem);
         pMsg = g_SocketProcess_Queue.get_message();
-        if (pMsg) 
+        if (pMsg)
         {
             s32Ret = cmd_parse_msg(pMsg, recvmsg);
             if(s32Ret < 0)
@@ -613,7 +613,7 @@ MI_S32 ST_Socket_TcpPacksend(MI_S32 s32Socket, const char *data, int len)
         {
             SocketDebug(407);
             return -1;
-        }   
+        }
     }
     else
         printf("tcp_send sock < 0\n");
@@ -863,11 +863,11 @@ try_wait_holdon:
                                     break;
                             }
                         }
-                        
+
                     }
                     SocketDebug(408);
                     break;
-                }                
+                }
                 default:
                     break;
             }
@@ -1068,7 +1068,7 @@ MI_S32 ST_Socket_PackNalu_UdpSend(MI_S32 s32UdpSocket, MI_U8 *NaluBuf, MI_S32 s3
     static MI_U32 u32NowTimeStamp = 3000;
     static MI_S32 s32FrameNo = 0;
     MI_S32 s32SlicePackNum;
-    MI_U8 *pu8TempHeader; 
+    MI_U8 *pu8TempHeader;
     MI_S32 j, s32SendRet = 0, s32SliceLen = 0;
     RTP_header video_rtp_header;
     //RTP_header *pvideo_rtp_header = (RTP_header *)&video_rtp_header;
@@ -1091,7 +1091,7 @@ MI_S32 ST_Socket_PackNalu_UdpSend(MI_S32 s32UdpSocket, MI_U8 *NaluBuf, MI_S32 s3
             pu8TempHeader = (MI_U8 *)&video_rtp_header;
             *pu8TempHeader = 0x80;
             pu8TempHeader++;
-            *pu8TempHeader = 0xe6; //payload 102 H264 + Last slice 
+            *pu8TempHeader = 0xe6; //payload 102 H264 + Last slice
             memset(u8TmpSendBuf, 0x0, 1600);
             memcpy(u8TmpSendBuf, &video_rtp_header, RTP_HEAD_SIZE);
             memcpy(u8TmpSendBuf + RTP_HEAD_SIZE, NaluBuf + (j-1)*UDP_MAX_PACKSIZE, (s32BufLen-(j-1)*UDP_MAX_PACKSIZE));
